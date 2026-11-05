@@ -1,0 +1,48 @@
+/** Shopper-facing wording for storefront cart/order API error codes. */
+const MESSAGES: Record<string, string> = {
+  out_of_stock: "There isn't enough stock for that quantity. Try a smaller amount.",
+  product_unavailable: "This product is no longer available.",
+  cross_business_product: "This product is no longer available.",
+  invalid_quantity: "Choose a quantity of 1 or more.",
+  empty_cart: "Your cart is empty.",
+  cart_not_found: "Your cart has expired or was already checked out. Please add the items again.",
+  cart_conflict: "Your cart changed while ordering. Please review it and try again.",
+  invalid_customer_name: "Your name must be 100 characters or fewer.",
+  invalid_customer_email: "Enter a valid email address.",
+  currency_mismatch: "These items can't be bought together. Please order them separately.",
+  rate_limited: "Too many attempts. Please wait a minute and try again.",
+  not_found: "This store isn't accepting orders right now.",
+  store_order_limit: "This store can't take new orders right now. Please try again later.",
+  cod_unavailable: "Cash on delivery isn't available for this store right now.",
+  customer_sign_in_required: "Sign in to your account to pay with cash on delivery.",
+  customer_email_unverified: "Confirm your email address to pay with cash on delivery.",
+  cod_limit_reached: "You already have several open cash-on-delivery orders here. Please wait until one is delivered or cancelled.",
+  cod_not_available_for_order: "Cash on delivery isn't available for this order or address. Please choose another way to pay.",
+  shipping_unavailable: "This store can't deliver this order. Check the address and the order amount.",
+  address_limit: "You have saved as many addresses as you can. Delete one to add another.",
+  invalid_payment_method: "That payment method isn't available.",
+  online_payment_unavailable: "Online payment isn't available for this store right now.",
+  currency_not_supported: "Online payment is available only for orders in Indian rupees (INR).",
+  invalid_amount: "This order total can't be paid online.",
+  payment_window_closed: "The payment window for this order has closed. Please place the order again.",
+  payment_provider_error: "The payment service is unavailable right now. Please try again in a moment.",
+  not_payable: "This order can no longer be paid online.",
+  csrf_failed: "Please reload the page and try again.",
+  unsupported_media_type: "Please reload the page and try again.",
+  variant_required: "Choose the product options first.",
+  variant_unavailable: "A product option in your cart is no longer available. Remove it and choose another.",
+  invalid_variant: "That product option is not available.",
+  invalid_shipping_address: "Check the delivery address.",
+  coupon_invalid: "This code is not valid.",
+  coupon_not_started: "This code is not active yet.",
+  coupon_expired: "This code has expired.",
+  coupon_min_subtotal: "Your order is below the minimum for this code.",
+  coupon_usage_limit: "This code has been fully used.",
+  coupon_customer_limit: "You have already used this code.",
+  coupon_currency: "This code cannot be used for this order.",
+};
+
+export function cartErrorMessage(code: unknown, fallback?: unknown): string {
+  if (typeof code === "string" && MESSAGES[code]) return MESSAGES[code];
+  return typeof fallback === "string" && fallback ? fallback : "Something went wrong. Please try again.";
+}

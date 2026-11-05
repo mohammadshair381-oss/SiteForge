@@ -1,0 +1,84 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# next.js
+/.next/
+/out/
+next-env.d.ts
+
+# production
+/build
+
+# misc
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# private keys and certificate bundles (never commit)
+*.pem
+*.key
+*.p12
+*.pfx
+
+# debug / logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# env files: ignore EVERY .env variant (.env, .env.local, .env.production,
+# .env.development, .env.staging, ...). Only the documented, credential-free
+# template is tracked.
+.env
+.env.*
+!.env.example
+
+# typescript
+*.tsbuildinfo
+
+# uploads / local media storage (dev-only disk mode; real files may contain
+# customer content)
+/public/uploads
+media-dev/
+
+# database exports and backups (contain customer PII). Never commit mongodump
+# or mongoexport output.
+/dump/
+/backups/
+*.bson
+*.archive
+
+# generated test, lint and build output captured to files
+/coverage/
+/build-errors.txt
+/mem_results.txt
+/*-output.txt
+/*_output*.txt
+/temp_*.txt
+/test_*.txt
+
+# hosting platform local state (contains project/org ids; created by CLIs)
+/.vercel/
+/.wrangler/
+
+# other build output and caches
+/dist/
+/.turbo/
+
+# logs, temporary files and local runtime data
+/logs/
+/tmp/
+/temp/
+*.tmp
+*.temp
+/uploads/
+
+# other private credentials and certificates
+*.crt
+*.cer
+*.jks
+*.keystore
+service-account*.json
+*credentials*.json

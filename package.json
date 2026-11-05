@@ -1,0 +1,45 @@
+{
+  "name": "saas-website-builder",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run test:unit",
+    "test:unit": "node --import tsx --test \"tests/unit/**/*.test.ts\"",
+    "test:integration": "node --import ./tests/integration/helpers/mock-next-headers-setup.ts --import tsx --test \"tests/integration/**/*.test.ts\"",
+    "test:all": "npm run test:unit && npm run test:integration",
+    "test:staging-ai": "node --import ./tests/integration/helpers/mock-next-headers-setup.ts --import tsx --test tests/staging/gemini-staging.test.ts",
+    "seed": "tsx scripts/seed.ts",
+    "create-admin": "tsx scripts/create-admin.ts",
+    "domain-migration": "tsx scripts/domain-migration.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1152.0",
+    "@aws-sdk/s3-request-presigner": "^3.1152.0",
+    "bcryptjs": "^2.4.3",
+    "jose": "^5.9.6",
+    "mongoose": "^8.9.5",
+    "next": "^15.5.28",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.10.7",
+    "@types/react": "^19.0.7",
+    "@types/react-dom": "^19.0.3",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^15.5.27",
+    "mongodb-memory-server": "^11.3.0",
+    "postcss": "^8.5.1",
+    "tailwindcss": "^3.4.17",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

@@ -1,0 +1,645 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------------------------------------------------------------------------
+ * Colour tokens (docs/design-system.md).
+ * `slate` and `brand` are CSS variables so the platform can have its own
+ * identity while storefront themes keep exactly the colours they were designed
+ * with. Defaults are the storefront values. A page holding `.app-surface` opts
+ * the whole document in (also portals, toasts and dialogs); `.store-surface`
+ * (ThemeRenderer) restores the defaults for a store rendered inside a platform
+ * page. Preview iframes are their own document, so they keep the defaults.
+ * ------------------------------------------------------------------------- */
+:root {
+  color-scheme: light;
+  --slate-50: 248 250 252;
+  --slate-100: 241 245 249;
+  --slate-200: 226 232 240;
+  --slate-300: 203 213 225;
+  --slate-400: 148 163 184;
+  --slate-500: 100 116 139;
+  --slate-600: 71 85 105;
+  --slate-700: 51 65 85;
+  --slate-800: 30 41 59;
+  --slate-900: 15 23 42;
+  --slate-950: 2 6 23;
+  --brand-50: 238 242 255;
+  --brand-100: 224 231 255;
+  --brand-200: 199 210 254;
+  --brand-300: 165 180 252;
+  --brand-400: 129 140 248;
+  --brand-500: 99 102 241;
+  --brand-600: 79 70 229;
+  --brand-700: 67 56 202;
+  --brand-800: 55 48 163;
+  --brand-900: 49 46 129;
+  --border-default: 229 231 235;
+}
+
+:root:has(.app-surface) {
+  --slate-50: 247 247 245;
+  --slate-100: 239 239 236;
+  --slate-200: 227 227 223;
+  --slate-300: 207 207 202;
+  --slate-400: 162 162 156;
+  --slate-500: 110 110 105;
+  --slate-600: 85 85 81;
+  --slate-700: 63 63 60;
+  --slate-800: 41 41 39;
+  --slate-900: 25 25 24;
+  --slate-950: 14 14 13;
+  --brand-50: 255 243 236;
+  --brand-100: 255 228 213;
+  --brand-200: 255 201 173;
+  --brand-300: 255 165 120;
+  --brand-400: 255 125 66;
+  --brand-500: 244 81 30;
+  --brand-600: 25 25 24;
+  --brand-700: 51 51 47;
+  --brand-800: 41 41 39;
+  --brand-900: 14 14 13;
+  --border-default: 227 227 223;
+  --app-shadow-sm: 0 1px 2px rgb(25 25 24 / 0.05);
+  --app-shadow-md: 0 1px 2px rgb(25 25 24 / 0.04), 0 6px 16px -6px rgb(25 25 24 / 0.1);
+  --app-shadow-lg: 0 2px 4px rgb(25 25 24 / 0.04), 0 16px 40px -12px rgb(25 25 24 / 0.16);
+}
+
+.store-surface {
+  display: contents;
+  --slate-50: 248 250 252;
+  --slate-100: 241 245 249;
+  --slate-200: 226 232 240;
+  --slate-300: 203 213 225;
+  --slate-400: 148 163 184;
+  --slate-500: 100 116 139;
+  --slate-600: 71 85 105;
+  --slate-700: 51 65 85;
+  --slate-800: 30 41 59;
+  --slate-900: 15 23 42;
+  --slate-950: 2 6 23;
+  --brand-50: 238 242 255;
+  --brand-100: 224 231 255;
+  --brand-200: 199 210 254;
+  --brand-300: 165 180 252;
+  --brand-400: 129 140 248;
+  --brand-500: 99 102 241;
+  --brand-600: 79 70 229;
+  --brand-700: 67 56 202;
+  --brand-800: 55 48 163;
+  --brand-900: 49 46 129;
+  --border-default: 229 231 235;
+  --app-shadow-sm: initial;
+  --app-shadow-md: initial;
+  --app-shadow-lg: initial;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+}
+
+body {
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* ---------------------------------------------------------------------------
+ * Platform base styles. Zero specificity (:where) so any utility class wins,
+ * and never inside a store rendered in a platform page.
+ * ------------------------------------------------------------------------- */
+@layer base {
+  .app-surface {
+    font-family: var(--font-ui), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  :where(.app-surface :is(h1, h2, h3, h4):not(.store-surface *)) {
+    font-family: var(--font-heading), var(--font-ui), ui-sans-serif, system-ui, sans-serif;
+    letter-spacing: -0.018em;
+  }
+  :where(.app-surface :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]), select, textarea):not(.store-surface *)) {
+    background-color: #fff;
+    border-color: rgb(var(--slate-300));
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  :where(.app-surface :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]), select, textarea):not(.store-surface *)):hover {
+    border-color: rgb(var(--slate-400));
+  }
+  :where(.app-surface :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]), select, textarea):not(.store-surface *)):focus-visible {
+    border-color: rgb(var(--brand-500));
+    box-shadow: 0 0 0 3px rgb(var(--brand-500) / 0.16);
+    outline: 2px solid transparent;
+  }
+  :where(.app-surface :is(input[type="checkbox"], input[type="radio"], input[type="range"]):not(.store-surface *)) {
+    accent-color: rgb(var(--brand-500));
+  }
+  :where(.app-surface :is(td, th, dd, time):not(.store-surface *)) {
+    font-variant-numeric: tabular-nums;
+  }
+  :where(.app-surface a[class*="text-brand-"]:not(.store-surface *)):hover {
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+  .app-surface ::selection {
+    background: rgb(var(--brand-200));
+    color: rgb(var(--slate-900));
+  }
+  .app-surface .store-surface ::selection {
+    background: revert;
+    color: revert;
+  }
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ---------------------------------------------------------------------------
+ * Platform visuals and motion. Transform and opacity only; everything is
+ * visible without animation and off for reduced motion.
+ * ------------------------------------------------------------------------- */
+.ui-dots {
+  background-image: radial-gradient(rgb(255 255 255 / 0.09) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+.ui-dots-ink {
+  background-image: radial-gradient(rgb(25 25 24 / 0.08) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+.ui-ember-glow {
+  background:
+    radial-gradient(55% 60% at 50% 110%, rgb(244 81 30 / 0.55), transparent 70%),
+    radial-gradient(30% 35% at 78% 100%, rgb(255 165 120 / 0.28), transparent 70%);
+}
+.ui-ember-text {
+  background: linear-gradient(100deg, #ffa578 0%, #f4511e 55%, #ff7d42 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.ui-skeleton {
+  background-color: rgb(var(--slate-200));
+  border-radius: 0.5rem;
+}
+.ui-scroll-x {
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.ui-scroll-x::-webkit-scrollbar {
+  display: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ui-page {
+    animation: ui-page 0.28s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  .ui-rise {
+    animation: ui-rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+    animation-delay: calc(var(--ui-i, 0) * 70ms);
+  }
+  .ui-pop {
+    animation: ui-pop 0.18s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  .ui-toast {
+    animation: ui-toast 0.28s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  .ui-fade {
+    animation: sf-fade 0.18s ease-out backwards;
+  }
+  .ui-skeleton {
+    background-image: linear-gradient(100deg, transparent 30%, rgb(255 255 255 / 0.55) 50%, transparent 70%);
+    background-size: 220% 100%;
+    animation: ui-shimmer 1.5s linear infinite;
+  }
+  .ui-lift {
+    transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  .ui-lift:hover {
+    transform: translateY(-2px);
+  }
+  .app-surface button:not(:disabled):active {
+    transform: translateY(0.5px);
+  }
+  .app-surface .store-surface button:not(:disabled):active {
+    transform: revert;
+  }
+}
+
+@keyframes ui-page {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ui-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ui-pop {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ui-toast {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ui-shimmer {
+  from {
+    background-position: 120% 0;
+  }
+  to {
+    background-position: -120% 0;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Storefront themes (docs/storefront-commerce.md, "Theme collection").
+ * Each theme has its own self-hosted typeface. A browser downloads a face only
+ * when the page uses it, so a store loads one or two (25-60 KB each); text shows
+ * in the system fallback until then (font-display: swap).
+ * ------------------------------------------------------------------------- */
+@font-face {
+  font-family: "SF Sora";
+  src: url("./fonts/theme-sora.woff2") format("woff2");
+  font-weight: 100 800;
+  font-display: swap;
+}
+@font-face {
+  font-family: "SF Jakarta";
+  src: url("./fonts/theme-jakarta.woff2") format("woff2");
+  font-weight: 200 800;
+  font-display: swap;
+}
+@font-face {
+  font-family: "SF Fraunces";
+  src: url("./fonts/theme-fraunces.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "SF Hanken";
+  src: url("./fonts/theme-hanken.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "SF Archivo";
+  src: url("./fonts/theme-archivo.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "SF Bodoni";
+  src: url("./fonts/theme-bodoni.woff2") format("woff2");
+  font-weight: 400 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "SF Space";
+  src: url("./fonts/theme-space.woff2") format("woff2");
+  font-weight: 300 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: "SF Nunito";
+  src: url("./fonts/theme-nunito.woff2") format("woff2");
+  font-weight: 200 1000;
+  font-display: swap;
+}
+@font-face {
+  font-family: "SF Newsreader";
+  src: url("./fonts/theme-newsreader.woff2") format("woff2");
+  font-weight: 200 800;
+  font-display: swap;
+}
+
+:root {
+  --sf-font-system: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --sf-font-grotesk: "Helvetica Neue", Helvetica, Arial, ui-sans-serif, system-ui, sans-serif;
+  --sf-font-sora: "SF Sora", var(--sf-font-system);
+  --sf-font-jakarta: "SF Jakarta", var(--sf-font-system);
+  --sf-font-hanken: "SF Hanken", var(--sf-font-grotesk);
+  --sf-font-archivo: "SF Archivo", var(--sf-font-system);
+  --sf-font-space: "SF Space", var(--sf-font-system);
+  --sf-font-rounded: "SF Nunito", ui-rounded, "SF Pro Rounded", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --sf-font-didone: "SF Bodoni", "Didot", "Bodoni 72", "Bodoni MT", Georgia, serif;
+  --sf-font-fraunces: "SF Fraunces", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --sf-font-newsreader: "SF Newsreader", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --sf-font-oldstyle: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --sf-font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --sf-font-mono: ui-monospace, SFMono-Regular, "Cascadia Mono", Menlo, Consolas, monospace;
+}
+
+/* Few products fill the row instead of leaving empty columns (fewProductsGrid). */
+@media (min-width: 768px) {
+  .sf-few {
+    grid-template-columns: repeat(var(--sf-few), minmax(0, 1fr)) !important;
+  }
+  .sf-few-1 {
+    max-width: 24rem;
+  }
+  .sf-few-2 {
+    max-width: 48rem;
+  }
+}
+
+/* The quiet texture on a colour tile that has no image. */
+.sf-tile-dots {
+  background-image: radial-gradient(rgb(255 255 255 / 0.22) 1px, transparent 1.5px);
+  background-size: 14px 14px;
+}
+
+/*
+ * Motion. Transform and opacity only; nothing is hidden by the server, and
+ * content already on screen is never animated in (MotionRoot only marks
+ * sections below the fold). Every animation is off for reduced motion.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  [data-reveal-state="pending"] {
+    opacity: 0;
+    transform: translate3d(0, 1.25rem, 0);
+  }
+  [data-reveal-state="in"] {
+    opacity: 1;
+    transform: none;
+    transition:
+      opacity var(--sf-dur, 0.8s) var(--sf-ease, ease),
+      transform var(--sf-dur, 0.8s) var(--sf-ease, ease);
+    transition-delay: calc(var(--sf-i, 0) * 70ms);
+  }
+  /* Hero text: never longer than 0.9s, so slower themes do not hold back the headline. */
+  .sf-enter {
+    animation: sf-enter min(var(--sf-dur, 0.8s), 0.9s) var(--sf-ease, ease) both;
+    animation-delay: calc(var(--sf-i, 0) * 80ms);
+  }
+  .sf-settle {
+    animation: sf-settle calc(var(--sf-dur, 0.8s) * 2) var(--sf-ease, ease) both;
+  }
+  .sf-drawer {
+    animation: sf-drawer 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .sf-fade {
+    animation: sf-fade 0.25s ease-out both;
+  }
+  .sf-pop {
+    animation: sf-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .sf-marquee {
+    animation: sf-marquee var(--sf-marquee, 36s) linear infinite;
+  }
+  .sf-marquee-wrap:hover .sf-marquee,
+  .sf-marquee-wrap:focus-within .sf-marquee {
+    animation-play-state: paused;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The loop copy of the marquee is decorative: show the content once, wrapped. */
+  .sf-marquee-copy {
+    display: none;
+  }
+  .sf-marquee {
+    flex-wrap: wrap;
+    justify-content: center;
+    width: auto;
+  }
+}
+
+@keyframes sf-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 1rem, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes sf-settle {
+  from {
+    transform: scale(1.06);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+@keyframes sf-drawer {
+  from {
+    transform: translate3d(-1.5rem, 0, 0);
+    opacity: 0.4;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+@keyframes sf-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes sf-pop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.18);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes sf-marquee {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+/* Volt's spotlight backdrop and Harvest's mobile dock spacing. */
+.sf-grid-lines {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+.sf-scroll-x {
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Button corners chosen on the design screen; "theme" adds no class. */
+.sf-btn-square .sf-btn {
+  border-radius: 0;
+}
+.sf-btn-rounded .sf-btn {
+  border-radius: 0.5rem;
+}
+.sf-btn-pill .sf-btn {
+  border-radius: 9999px;
+}
+
+/* Other choices on the design screen. "theme" adds no class, so a store that changes nothing is untouched. */
+.sf-btn-outline .sf-btn {
+  background: transparent !important;
+  color: var(--sf-primary) !important;
+  box-shadow: inset 0 0 0 2px var(--sf-primary) !important;
+}
+.sf-btn-soft .sf-btn {
+  background: color-mix(in srgb, var(--sf-primary) 16%, transparent) !important;
+  color: var(--sf-primary) !important;
+}
+.sf-heading-weight :is(h1, h2, h3, h4) {
+  font-weight: var(--sf-heading-weight) !important;
+}
+.sf-body-weight {
+  font-weight: var(--sf-body-weight);
+}
+.sf-heading-smaller :is(h1, h2, h3) {
+  zoom: 0.9;
+}
+.sf-heading-larger :is(h1, h2, h3) {
+  zoom: 1.12;
+}
+.sf-custom-bg {
+  background-color: var(--sf-page-bg) !important;
+}
+.sf-custom-text {
+  color: var(--sf-page-text) !important;
+}
+.sf-radius-none [class*="rounded"]:not([class*="rounded-full"]):not(.sf-btn) {
+  border-radius: 0 !important;
+}
+.sf-radius-small [class*="rounded"]:not([class*="rounded-full"]):not(.sf-btn) {
+  border-radius: 0.375rem !important;
+}
+.sf-radius-medium [class*="rounded"]:not([class*="rounded-full"]):not(.sf-btn) {
+  border-radius: 0.75rem !important;
+}
+.sf-radius-large [class*="rounded"]:not([class*="rounded-full"]):not(.sf-btn) {
+  border-radius: 1.5rem !important;
+}
+.sf-spacing-compact main :is(section[data-section], [data-section-wrap] > section) {
+  padding-top: 2.5rem !important;
+  padding-bottom: 2.5rem !important;
+}
+.sf-spacing-spacious main :is(section[data-section], [data-section-wrap] > section) {
+  padding-top: 6.5rem !important;
+  padding-bottom: 6.5rem !important;
+}
+.sf-width-narrow .sf-container {
+  max-width: 64rem !important;
+}
+.sf-width-wide .sf-container {
+  max-width: 110rem !important;
+}
+.sf-links-underline main :is(p, li) a {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.sf-links-plain main :is(p, li) a {
+  text-decoration: none !important;
+}
+
+/* Storefront customer account: tokens come from the active theme (accountVars in skins.ts). */
+.sf-acc-card {
+  background: var(--acc-surface, #ffffff);
+  color: var(--acc-text, #0f172a);
+  border: var(--acc-border-width, 1px) solid var(--acc-line, #e2e8f0);
+  border-radius: var(--acc-radius, 1rem);
+  box-shadow: var(--acc-shadow, none);
+}
+.sf-acc-title {
+  font-weight: var(--acc-title-weight, 700);
+  letter-spacing: var(--acc-title-tracking, -0.01em);
+  text-transform: var(--acc-title-case, none);
+}
+.sf-acc-muted {
+  color: var(--acc-muted, #475569);
+}
+.sf-acc-rule {
+  border-color: var(--acc-line, #e2e8f0);
+}
+.sf-acc-divide > * + * {
+  border-color: var(--acc-line, #e2e8f0);
+}
+.sf-acc-error {
+  color: var(--acc-danger, #b91c1c);
+}
+.sf-acc-control {
+  border-radius: var(--acc-control, 0.5rem);
+}
+.sf-acc-action {
+  background: var(--sf-accent, #4f46e5);
+  color: var(--sf-accent-text, #ffffff);
+  text-transform: var(--acc-button-case, none);
+  letter-spacing: var(--acc-button-tracking, normal);
+}
+.sf-acc-secondary {
+  border: var(--acc-border-width, 1px) solid var(--acc-line, #cbd5e1);
+  background: transparent;
+  color: var(--acc-text, #0f172a);
+  text-transform: var(--acc-button-case, none);
+  letter-spacing: var(--acc-button-tracking, normal);
+}
+.sf-acc-secondary:hover {
+  border-color: var(--acc-text, #0f172a);
+}
+.sf-acc-danger {
+  border-color: var(--acc-danger, #b91c1c);
+  background: transparent;
+  color: var(--acc-danger, #b91c1c);
+}
+.sf-acc-input {
+  border: var(--acc-border-width, 1px) solid var(--acc-input-line, #94a3b8);
+  background: var(--acc-field, #ffffff);
+  color: var(--acc-text, #0f172a);
+}
+.sf-acc-input::placeholder {
+  color: var(--acc-muted, #475569);
+}
+.sf-acc-input:focus {
+  border-color: var(--acc-text, #0f172a);
+  box-shadow: 0 0 0 1px var(--acc-text, #0f172a);
+}
+.sf-acc-focus:focus-visible {
+  outline: 2px solid var(--acc-text, #0f172a);
+  outline-offset: 2px;
+}
