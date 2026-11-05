@@ -8,7 +8,7 @@ import { ScheduledJob, type ScheduledRunRecord } from "@/models/ScheduledJob";
  * (docs/scheduled-jobs.md). This stops two runs of a job overlapping, and records how each
  * one went. The lock is a lease, so a run that dies cannot block the job for ever.
  */
-export type ScheduledJobKey = "billing-reconcile" | "domain-health" | "cart-cleanup" | "media-cleanup" | "conversation-cleanup";
+export type ScheduledJobKey = "billing-reconcile" | "domain-health" | "cart-cleanup" | "media-cleanup" | "conversation-cleanup" | "order-expiry";
 
 export const SCHEDULED_JOB_LABELS: Record<ScheduledJobKey, string> = {
   "billing-reconcile": "Billing reconciliation",
@@ -16,6 +16,7 @@ export const SCHEDULED_JOB_LABELS: Record<ScheduledJobKey, string> = {
   "cart-cleanup": "Expired cart cleanup",
   "media-cleanup": "Media storage cleanup",
   "conversation-cleanup": "Expired AI conversation cleanup",
+  "order-expiry": "Expired order reservation release",
 };
 
 /** The most any run handles, whatever is configured. */
@@ -136,6 +137,10 @@ export const billingReconcileSettings = () => settings("BILLING_RECONCILE", 6);
 export const domainHealthSettings = () => settings("DOMAIN_HEALTH", 24);
 export const cartCleanupSettings = () => ({ timeBudgetMs: settings("CART_CLEANUP", 24).timeBudgetMs });
 export const conversationCleanupSettings = () => ({ timeBudgetMs: settings("CONVERSATION_CLEANUP", 24).timeBudgetMs });
+export const orderExpirySettings = () => {
+  const { limit, timeBudgetMs } = settings("ORDER_EXPIRY", 24);
+  return { limit, timeBudgetMs };
+};
 export const mediaCleanupSettings = () => {
   const { limit, timeBudgetMs } = settings("MEDIA_CLEANUP", 24);
   return { limit, timeBudgetMs };

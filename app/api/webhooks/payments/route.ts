@@ -115,12 +115,28 @@ function assertPaymentMatchesPlan(
   }
 }
 
+/**
+ * This generic webhook has no provider API to re-read, so it can only believe its payload. It therefore
+ * never runs alongside Razorpay billing, whose rule is that access changes only from a webhook followed
+ * by an API re-read (lib/billing-razorpay.ts). In production it also has to be asked for by name.
+ */
+function legacyWebhookAvailable(config: ReturnType<typeof env>): boolean {
+  if (!config.PAYMENT_WEBHOOK_SECRET || config.PAYMENT_PROVIDER === "razorpay") return false;
+  return config.NODE_ENV !== "production" || config.LEGACY_PAYMENT_WEBHOOK_ENABLED;
+}
+
+/** Billed through Razorpay, or about to be. Left to that integration, whatever this payload says. */
+function managedByBillingProvider(subscription: { provider?: string | null; providerSubscriptionId?: string | null; pendingCheckout?: { providerSubscriptionId?: string | null } | null } | null): boolean {
+  return Boolean(subscription && (subscription.provider === "razorpay" || subscription.providerSubscriptionId || subscription.pendingCheckout?.providerSubscriptionId));
+}
+
 export async function POST(request: Request) {
   return handle(async () => {
-    const secret = env().PAYMENT_WEBHOOK_SECRET;
-    if (!secret) {
+    const config = env();
+    if (!legacyWebhookAvailable(config)) {
       throw new HttpError(400, "Payment webhooks are not configured", "not_configured");
     }
+    const secret = config.PAYMENT_WEBHOOK_SECRET;
 
     const rawBody = await request.text();
     const signature = request.headers.get("x-signature");
@@ -157,13 +173,22 @@ export async function POST(request: Request) {
     const session = await mongoose.connection.startSession();
     try {
       let duplicate = false;
+      let providerManaged = false;
       try {
         await session.withTransaction(async () => {
+          providerManaged = false;
           // Resolve the target subscription up front (read only) so the Payment
           // row can carry its link. No mutation happens yet.
           const subscription = await Subscription.findOne({ business: businessId })
         .sort({ createdAt: -1 })
         .session(session);
+
+          // Read inside the transaction, so a Razorpay activation at the same moment
+          // conflicts with any write below and this is decided again.
+          if (managedByBillingProvider(subscription)) {
+            providerManaged = true;
+            return;
+          }
 
           if (event.type === "payment.succeeded") {
             // H2: a successful payment must attach to an existing subscription.
@@ -277,6 +302,11 @@ export async function POST(request: Request) {
         } else {
           throw error;
         }
+      }
+      if (providerManaged) {
+        // Acknowledged so it is not delivered again. Nothing is written, not even a Payment.
+        console.warn("[payments] legacy webhook ignored for a subscription billed through a provider", { operation: "legacy_webhook" });
+        return ok({ received: true, ignored: true });
       }
       return duplicate
         ? ok({ received: true, duplicate: true })

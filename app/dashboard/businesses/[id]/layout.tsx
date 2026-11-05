@@ -43,6 +43,8 @@ export default async function BusinessLayout({
   const rootDomain = storeLinkRoot((await headers()).get("host"));
   const storefrontUrl = `http://${business.subdomain}.${rootDomain}`;
   const status = STATUS[business.status] ?? STATUS.draft;
+  // Billing is owner-only. Other members are still told when a store has no active plan, not why.
+  const isOwner = membership.role === "owner";
 
   return (
     <div>
@@ -69,13 +71,13 @@ export default async function BusinessLayout({
       <PlanStatusBanner
         suspended={business.status === "suspended"}
         businessId={id}
-        isOwner={membership.role === "owner"}
+        isOwner={isOwner}
         planName={entitlements.planName}
         active={entitlements.active}
-        expired={entitlements.expired}
-        status={entitlements.status}
-        graceUntil={entitlements.graceUntil}
-        endsOn={subscription?.cancelAtPeriodEnd ? subscription.currentPeriodEnd : null}
+        expired={isOwner && entitlements.expired}
+        status={isOwner ? entitlements.status : ""}
+        graceUntil={isOwner ? entitlements.graceUntil : null}
+        endsOn={isOwner && subscription?.cancelAtPeriodEnd ? subscription.currentPeriodEnd : null}
       />
       {children}
     </div>

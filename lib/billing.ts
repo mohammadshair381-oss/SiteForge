@@ -58,6 +58,19 @@ export interface Entitlements {
 }
 
 /**
+ * What a member who is not the owner may be told: the plan, its limits and whether it is in force, which
+ * they need to know what the store can do. Why a plan lapsed, or that a payment failed, is billing state.
+ */
+export type MemberEntitlements = Omit<Entitlements, "status" | "graceUntil" | "expired">;
+
+/** Billing is owner-only. Call this wherever entitlements leave the server for a member's role. */
+export function entitlementsForRole(entitlements: Entitlements, role: string): Entitlements | MemberEntitlements {
+  if (role === "owner") return entitlements;
+  const { status: _status, graceUntil: _graceUntil, expired: _expired, ...rest } = entitlements;
+  return rest;
+}
+
+/**
  * AI requests per business per month for plans that do not set
  * `features.aiRequestsPerMonth` (owner-approved initial allowance; set per
  * plan in the Super Admin plan manager). AI itself also needs the platform

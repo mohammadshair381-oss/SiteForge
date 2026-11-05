@@ -39,7 +39,7 @@ const FILTER_LABELS: Record<(typeof BILLING_FILTERS)[number], string> = {
   attention: "Needs attention",
 };
 
-const FEATURES: IndexedFeature[] = ["subscription_billing", "team_invitations", "custom_domains", "customer_carts", "notifications", "order_refunds"];
+const FEATURES: IndexedFeature[] = ["subscription_billing", "team_invitations", "custom_domains", "customer_carts", "notifications", "order_refunds", "customer_accounts"];
 
 export default async function AdminBillingPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await requireSuperAdminPage();

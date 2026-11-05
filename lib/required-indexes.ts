@@ -5,6 +5,8 @@ import { BillingAdjustment } from "@/models/BillingAdjustment";
 import { BillingEvent } from "@/models/BillingEvent";
 import { Business } from "@/models/Business";
 import { Cart } from "@/models/Cart";
+import { Customer } from "@/models/Customer";
+import { CustomerActionToken } from "@/models/CustomerActionToken";
 import { DomainVerification } from "@/models/DomainVerification";
 import { Notification } from "@/models/Notification";
 import { OrderRefund } from "@/models/OrderRefund";
@@ -18,7 +20,7 @@ import { TeamInvitation } from "@/models/TeamInvitation";
  * Automated tests run on throwaway databases with no indexes built, so the check does
  * not apply to them. The indexes every part of the platform needs are in lib/core-indexes.ts.
  */
-export type IndexedFeature = "team_invitations" | "subscription_billing" | "custom_domains" | "customer_carts" | "notifications" | "order_refunds";
+export type IndexedFeature = "team_invitations" | "subscription_billing" | "custom_domains" | "customer_carts" | "notifications" | "order_refunds" | "customer_accounts";
 
 export const FEATURE_LABELS: Record<IndexedFeature, string> = {
   team_invitations: "Team invitations",
@@ -27,6 +29,7 @@ export const FEATURE_LABELS: Record<IndexedFeature, string> = {
   customer_carts: "Carts saved to customer accounts",
   notifications: "Notification centre",
   order_refunds: "Razorpay refunds on store orders",
+  customer_accounts: "Customer accounts",
 };
 
 interface RequiredIndex extends UniqueIndexRule {
@@ -54,6 +57,12 @@ const REQUIRED: Record<IndexedFeature, RequiredIndex[]> = {
   // One record per refund at Razorpay. A full index would refuse every refund with no provider id yet,
   // so only this filter will do. Without it, a refund could be recorded twice.
   order_refunds: [{ model: () => OrderRefund, name: "orderrefunds", key: { providerRefundId: 1 }, partial: { providerRefundId: { $type: "string" } }, partialRequired: true }],
+  // One account per address per store, and one holder per emailed link. Without the first,
+  // registrations at the same moment could create two accounts.
+  customer_accounts: [
+    { model: () => Customer, name: "customers", key: { business: 1, email: 1 } },
+    { model: () => CustomerActionToken, name: "customeractiontokens", key: { tokenHash: 1 } },
+  ],
 };
 
 /** "unknown" when the database could not say, which must not read as "missing". */

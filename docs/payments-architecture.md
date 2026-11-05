@@ -224,9 +224,14 @@ Razorpay. **No real refund has been made.**
 - Money counts as refunded (`refundedTotal`) only when Razorpay says `processed`:
   from its response, or a signed `refund.*` webhook that triggers a re-read
   (`GET /refunds/{id}`). Every settlement is conditional, so repeats apply once.
-- A definite refusal gives the hold back. A lost response keeps it, with the refund
-  shown as in progress. Checking again re-sends with the same `X-Refund-Idempotency`
-  key, so it cannot refund twice.
+- A hold is given back only when something proves nothing was refunded: Razorpay reports
+  the refund `failed`, or it definitely refuses the very first request (a 4xx other than
+  408, 409, 425 or 429), or no account exists to send that first request with.
+- Every other outcome is unknown, and keeps the hold, with the refund shown as in
+  progress: a timeout, a 5xx, a lost response, or anything that goes wrong when checking
+  again. That includes a refusal of a repeat, and a disconnected account, because the
+  first request may have worked. Checking again re-sends with the same
+  `X-Refund-Idempotency` key, and a later `refund.*` webhook settles it too.
 - A refund started in Razorpay's dashboard is recorded from its webhook if its payment
   belongs to this same business and the amount fits what is left. Otherwise it is
   logged and the order is left alone.

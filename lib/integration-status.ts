@@ -54,6 +54,12 @@ export function integrationStatuses(): IntegrationStatus[] {
       note: "Its secret is present. Without it, run-out conversations are still deleted when they are found. A scheduler still has to call the endpoint, and none is set up by SiteForge (docs/scheduled-jobs.md).",
     },
     {
+      key: "order_expiry",
+      label: "Scheduled release of expired order reservations",
+      configured: hasSchedulerSecret("ORDER_EXPIRY_SECRET"),
+      note: "Its secret is present. Without a scheduler, stock and coupon uses held by abandoned orders are released only when someone next changes a cart or places an order at that store, or its owner opens orders or customers. A scheduler still has to call the endpoint, and none is set up by SiteForge (docs/scheduled-jobs.md).",
+    },
+    {
       key: "email",
       label: "Resend email",
       configured: process.env.EMAIL_PROVIDER === "resend" && has("EMAIL_API_KEY", "EMAIL_FROM", "APP_URL"),

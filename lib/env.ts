@@ -30,6 +30,9 @@ const schema = z.object({
   ROOT_DOMAINS: z.string().prefault("localhost:3000"),
   PAYMENT_PROVIDER: z.string().prefault("manual"),
   PAYMENT_WEBHOOK_SECRET: z.string().optional().prefault(""),
+  // The legacy generic webhook cannot re-read anything from a provider, so a production
+  // deployment must ask for it by name as well as giving it a secret. Default off.
+  LEGACY_PAYMENT_WEBHOOK_ENABLED: booleanFromEnv,
   // Explicit, default-off escape hatch. Manual activation of paid plans is
   // refused in production unless this is set to "true".
   ALLOW_MANUAL_BILLING: booleanFromEnv,

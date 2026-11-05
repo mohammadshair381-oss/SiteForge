@@ -74,6 +74,10 @@ export interface GlobalExpireOrdersOptions {
    */
   now?: Date;
   limit?: number;
+  /** No new order is started after this moment (epoch ms). */
+  deadlineMs?: number;
+  /** Orders already tried in this run, which are not tried again. */
+  excludeOrderIds?: string[];
 }
 
 export interface ExpireOrderFailure {
@@ -88,6 +92,8 @@ export interface ExpireOrdersResult {
   failed: number;
   orderIds: string[];
   failures: ExpireOrderFailure[];
+  /** Set only when a deadline was given: it passed before every candidate was tried. */
+  stoppedEarly?: boolean;
 }
 
 function requireBusinessScope(businessId: string): string {
@@ -407,6 +413,8 @@ interface ExpirySweepOptions {
   businessId?: string;
   now?: Date;
   limit?: number;
+  deadlineMs?: number;
+  excludeOrderIds?: string[];
 }
 
 /**
@@ -434,6 +442,7 @@ async function runExpirySweep(
 
   const due = await Order.find({
     ...(businessId ? { business: businessId } : {}),
+    ...(options.excludeOrderIds?.length ? { _id: { $nin: options.excludeOrderIds } } : {}),
     status: "pending",
     inventoryState: "reserved",
     reservationExpiresAt: { $ne: null, $lte: now },
@@ -446,8 +455,15 @@ async function runExpirySweep(
   const orderIds: string[] = [];
   const failures: ExpireOrderFailure[] = [];
   let released = 0;
+  let attempted = 0;
+  let stoppedEarly = false;
 
   for (const candidate of due) {
+    if (options.deadlineMs !== undefined && Date.now() >= options.deadlineMs) {
+      stoppedEarly = true;
+      break;
+    }
+    attempted += 1;
     try {
       const result = await releaseExpiredOrder({
         orderId: String(candidate._id),
@@ -468,17 +484,18 @@ async function runExpirySweep(
 
   const failed = failures.length;
   return {
-    processed: due.length,
+    processed: attempted,
     released,
-    skipped: due.length - released - failed,
+    skipped: attempted - released - failed,
     failed,
     orderIds,
     failures,
+    ...(options.deadlineMs !== undefined ? { stoppedEarly } : {}),
   };
 }
 
 /**
- * Bounded, tenant-scoped expiry sweep. No scheduler/timer calls this.
+ * Bounded, tenant-scoped expiry sweep, for routes acting on one store.
  *
  * Only orders with `inventoryState: "reserved"` and an explicit
  * `reservationExpiresAt` are eligible, so legacy pending orders are never
@@ -498,10 +515,11 @@ export async function releaseExpiredOrders(
 }
 
 /**
- * On-demand reservation cleanup for one business. There is no scheduler, so
- * routes that are about to check or reserve stock (cart writes, order
- * creation, the owner's order list) call this first; otherwise abandoned unpaid
- * orders would hold stock forever. Bounded (`limit`) and best-effort: a sweep
+ * On-demand reservation cleanup for one business. A scheduler is optional
+ * (`releaseDueOrdersForScheduler`), so routes that are about to check or reserve
+ * stock (cart writes, order creation, the owner's order list) call this first;
+ * without one, abandoned unpaid orders would otherwise hold stock until then.
+ * Bounded (`limit`) and best-effort: a sweep
  * failure must never block the request that triggered it, because each release
  * is independently safe to retry on the next call.
  */
@@ -530,7 +548,8 @@ export async function releaseExpiredOrdersOnDemand(
  * Internal-only, cross-tenant expiry sweep for a deployment worker.
  *
  * This is intentionally named to make its blast radius obvious. Do not export
- * it through an API route, server action, or any tenant-facing boundary.
+ * it through a server action or any tenant-facing boundary. Its only route is
+ * the scheduler's, behind its own secret (`releaseDueOrdersForScheduler`).
  */
 export async function releaseExpiredOrdersInternalGlobal(
   options: GlobalExpireOrdersOptions = {},
@@ -538,7 +557,39 @@ export async function releaseExpiredOrdersInternalGlobal(
   return runExpirySweep({
     now: options.now,
     limit: options.limit,
+    deadlineMs: options.deadlineMs,
+    excludeOrderIds: options.excludeOrderIds,
   });
+}
+
+/**
+ * One scheduled run (app/api/cron/order-expiry; lib/scheduled-jobs.ts stops two overlapping). Oldest
+ * first, at most `limit` orders, each released in its own transaction by the same conditional step as
+ * every other release, so stock and coupon uses come back exactly once. Which orders are due is the
+ * sweep's existing rule: nothing here decides expiry.
+ *
+ * An order that fails rolls back alone and is counted. Failures would otherwise take the oldest places
+ * in every later run and could keep newer orders waiting, so a full batch with failures also looks that
+ * many places past them. They are tried again next run. Counts only: an error could hold order details.
+ */
+export async function releaseDueOrdersForScheduler(options: { limit: number; timeBudgetMs: number }): Promise<{ checked: number; changed: number; failed: number; skipped: number; stoppedEarly: boolean }> {
+  const deadlineMs = Date.now() + options.timeBudgetMs;
+  const first = await releaseExpiredOrdersInternalGlobal({ limit: options.limit, deadlineMs });
+  const firstBatchFull = first.processed >= options.limit;
+  const second =
+    first.failed > 0 && firstBatchFull && !first.stoppedEarly
+      ? await releaseExpiredOrdersInternalGlobal({ limit: first.failed, deadlineMs, excludeOrderIds: first.failures.map((failure) => failure.orderId) })
+      : null;
+  const failed = first.failed + (second?.failed ?? 0);
+  if (failed > 0) console.warn("[orders] some expired reservations could not be released", { operation: "order_expiry", failed });
+  return {
+    checked: first.processed + (second?.processed ?? 0),
+    changed: first.released + (second?.released ?? 0),
+    failed,
+    skipped: first.skipped + (second?.skipped ?? 0),
+    // A full batch means more may be waiting: the next run carries on.
+    stoppedEarly: Boolean(first.stoppedEarly || second?.stoppedEarly) || (second ? second.processed >= first.failed : firstBatchFull),
+  };
 }
 
 /**

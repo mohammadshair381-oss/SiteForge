@@ -31,8 +31,11 @@ import { OrderRefund, type OrderRefundDoc } from "@/models/OrderRefund";
  * no provider id, so they do not depend on it.
  */
 const EPSILON = 0.005;
-/** Razorpay's answer for "try again later" as opposed to "this will never work". */
-const isDefiniteFailure = (error: RazorpayApiError) => error.status >= 400 && error.status < 500 && error.status !== 429;
+/** Answers that say the request may still have an effect, or simply came too soon: timeout, conflict, too early, too many. */
+const NOT_A_REFUSAL = new Set([408, 409, 425, 429]);
+/** Razorpay's answer for "this will never work" as opposed to "try again later". */
+const isDefiniteFailure = (error: RazorpayApiError) => error.status >= 400 && error.status < 500 && !NOT_A_REFUSAL.has(error.status);
+const stillInProgress = () => new HttpError(502, "Razorpay has not confirmed what happened to this refund, so it stays in progress and its amount stays held. Check it again shortly.", "refund_outcome_unknown");
 
 export interface RefundRequest {
   businessId: string;
@@ -168,12 +171,23 @@ async function applyRemoteRefund(refund: OrderRefundDoc, remote: RazorpayRefund,
   else if (remote.status === "failed") await failRefund(refund._id, "provider_failed");
 }
 
-async function sendToProvider(refund: OrderRefundDoc, now: Date, fetchImpl?: FetchLike): Promise<void> {
+/**
+ * `first` is true only for the send straight after the hold was made, when nothing can have reached
+ * Razorpay yet. Any later send may be repeating one whose answer was lost, so the refund may already
+ * exist there: then only Razorpay's own report of the refund can give the hold back (`applyRemoteRefund`),
+ * never the lack of an account or an error on the repeat.
+ */
+async function sendToProvider(refund: OrderRefundDoc, now: Date, attempt: { first: boolean }, fetchImpl?: FetchLike): Promise<void> {
   const account = await paymentAccountForRefunds(refund.business, refund.mode);
   if (!account) {
-    // Nothing reached the provider, so this cannot have refunded anyone.
-    await failRefund(refund._id, "account_unavailable");
-    throw new HttpError(409, "Online refunds are not available: reconnect the Razorpay account this payment was taken with.", "refund_account_unavailable");
+    if (attempt.first) await failRefund(refund._id, "account_unavailable");
+    throw new HttpError(
+      409,
+      attempt.first
+        ? "Online refunds are not available: reconnect the Razorpay account this payment was taken with."
+        : "Reconnect the Razorpay account this payment was taken with to check this refund. It stays in progress, and its amount stays held.",
+      "refund_account_unavailable",
+    );
   }
   try {
     const remote = await createRefund(
@@ -186,13 +200,13 @@ async function sendToProvider(refund: OrderRefundDoc, now: Date, fetchImpl?: Fet
   } catch (error) {
     if (!(error instanceof RazorpayApiError)) throw error;
     console.warn("[payments] refund request failed", { status: error.status, code: error.providerCode });
-    if (isDefiniteFailure(error)) {
+    if (attempt.first && isDefiniteFailure(error)) {
       await failRefund(refund._id, error.providerCode);
       throw new HttpError(422, "Razorpay refused this refund. Check your Razorpay account balance and the payment's status, then try again.", "refund_refused");
     }
-    // The outcome is unknown: the refund stays pending and held, and retrying
-    // with the same key cannot refund twice.
-    throw new HttpError(502, "Razorpay did not answer. The refund is recorded as in progress: check it again shortly.", "refund_outcome_unknown");
+    // The outcome is unknown, including a refusal of a repeat, which may only mean the first
+    // request worked: the refund stays pending and held, and a later report from Razorpay settles it.
+    throw stillInProgress();
   }
 }
 
@@ -267,11 +281,11 @@ export async function createOrderRefund(input: RefundRequest): Promise<OrderRefu
   const refund = created as unknown as OrderRefundDoc;
 
   if (input.method === "manual") await settleRefund(refund._id, now);
-  else await sendToProvider(refund, now, input.fetchImpl);
+  else await sendToProvider(refund, now, { first: true }, input.fetchImpl);
   return (await OrderRefund.findById(refund._id).lean<OrderRefundDoc>()) as OrderRefundDoc;
 }
 
-/** Asks Razorpay about a pending refund again (safe to repeat). */
+/** Asks Razorpay about a pending refund again (safe to repeat, and never gives the hold back by itself). */
 export async function refreshOrderRefund(input: { businessId: string; refundId: string; now?: Date; fetchImpl?: FetchLike }): Promise<OrderRefundDoc> {
   await dbConnect();
   const now = input.now ?? new Date();
@@ -291,7 +305,7 @@ export async function refreshOrderRefund(input: { businessId: string; refundId: 
       }
     } else {
       // The first answer was lost: the same key returns the same refund.
-      await sendToProvider(refund, now, input.fetchImpl);
+      await sendToProvider(refund, now, { first: false }, input.fetchImpl);
     }
   }
   return (await OrderRefund.findById(refund._id).lean<OrderRefundDoc>()) as OrderRefundDoc;

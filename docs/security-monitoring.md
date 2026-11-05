@@ -78,6 +78,32 @@ expired session signatures (they cannot be attributed to an account), and
 email-verification resend requests. Without `TRUSTED_IP_HEADER` (development)
 no source fingerprint is stored.
 
+## Platform sign-in limits
+
+`POST /api/auth/login`. All are shared across instances, and their keys are HMAC-hashed, so no address or email is stored.
+
+| Limit | Counts | Purpose |
+|---|---|---|
+| 10 per 5 minutes, per source | Every attempt | Slows one source trying many accounts |
+| 5 per 5 minutes, per (account, source) | Failures | One source cannot use up an account's budget for everyone |
+| 50 per 5 minutes, per account | Failures | Bounds guessing spread over many addresses |
+| 5 per 15 minutes, per known device | Failures | Replaces the two above for a browser that has signed in to this account before |
+
+- **Source** is one IPv4 address or one IPv6 /64, from `TRUSTED_IP_HEADER` only (`rateLimitSourceKey`), so rotating addresses
+  inside a /64 gives no new budget. Wider IPv6 ranges are held back by the account-wide limit.
+- **Only failures count** against the account: a unit is reserved before the password check, so guesses at the same
+  moment cannot overshoot, and it is returned after a full sign-in. A correct password on an unconfirmed account stays
+  counted, because that answer must look like a wrong password.
+- **Known device** (`lib/auth/platform-device.ts`, cookie `__Host-swb_device` in production): after the OWASP device cookie
+  pattern. It is issued after a correct sign-in and bound to the email and the current password, so changing the password
+  outdates it. It only chooses a budget and never replaces the password check. So people guessing elsewhere cannot lock an owner
+  out of a browser they have already used, and a stolen marker grants only that small budget.
+- **Nothing reveals an account:** an unknown address spends and answers exactly as a real one does, and the answer is the
+  same for a wrong password, an unknown address and an unconfirmed account.
+- **What remains:** someone sustaining 50 failures every 5 minutes from about 10 or more sources can still delay a sign-in
+  from a browser that has never signed in to that account. Each window lasts at most 5 minutes, it never locks permanently, and a
+  password reset does not depend on it. Customer accounts have their own limits (`docs/customer-accounts.md`).
+
 ## Database prerequisites (approved operation)
 
 `SecurityEvent` has `autoIndex` / `autoCreate` off. Before relying on

@@ -38,7 +38,7 @@ always decided on the server by `lib/billing.ts`.
 | # | Boundary | Exists today | Provider adapter must supply |
 |---|---|---|---|
 | A | `POST /api/businesses/[id]/subscription` (owner, verified email) | Manual mode only; other providers → 501 | `createCheckout({ businessId, planKey, returnUrl })` → hosted URL. Amount and currency from the `Plan` document, never the client. |
-| B | Webhook route | `api/webhooks/payments` (generic HMAC, no timestamp) | Provider signature scheme with a replay window. `verifyTimestampedSignature` (`lib/billing-lifecycle.ts`) implements the generic `timestamp.body` form (default ±300 s). |
+| B | Webhook route | `api/webhooks/payments` (generic HMAC, no timestamp; see "Legacy webhook") | Provider signature scheme with a replay window. `verifyTimestampedSignature` (`lib/billing-lifecycle.ts`) implements the generic `timestamp.body` form (default ±300 s). |
 | C | Adapter mapping | — | `toNormalizedEvent(providerEvent)` → `NormalizedBillingEvent` (event id, type, provider `occurredAt`, provider subscription id, plan key from the provider price id, period, amount, currency). Re-read the subscription/invoice from the provider API where supported. |
 | D | Lifecycle reducer | `reduceSubscription` (pure, unit-tested; not wired) | Nothing: provider-independent. |
 | E | Persistence | `Payment.providerEventId` unique index; transactions | Store `providerSubscriptionId` (field and unique partial index already exist on `Subscription`, unused today), `cancelAtPeriodEnd` (exists, unused), plus new `graceUntil` and `lastEventAt` fields. |
@@ -130,6 +130,14 @@ has ended keeps access for 24 hours while the renewal is reported.
 Owner actions: choose a plan, cancel at period end (`cancel_at_cycle_end`), change plan at the
 cycle end (`PATCH` with `schedule_change_at: "cycle_end"`), refresh status, cancel an unfinished
 payment, view invoices (`GET /invoices?subscription_id=`, read live, never stored).
+
+**Legacy webhook.** `POST /api/webhooks/payments` is the older generic contract. It has no provider API to re-read, so it
+can only believe its signed payload, which is not how Razorpay billing works. So it answers `400 not_configured`, before reading
+the body, unless `PAYMENT_WEBHOOK_SECRET` is set, and always with `PAYMENT_PROVIDER=razorpay`; in production it also
+needs `LEGACY_PAYMENT_WEBHOOK_ENABLED=true`. When it does run, a subscription with `provider: "razorpay"`, a
+`providerSubscriptionId` or a Razorpay payment page waiting is left alone, for success and failure events alike:
+the event is acknowledged (`ignored: true`) and nothing is written. That is read inside the transaction. Its signature check and
+`providerEventId` dedupe are unchanged. Keep its secret empty unless an integration really needs it.
 
 **A pending plan and a cancellation.** A cancellation can never turn into a free or permanent paid plan.
 `pendingPlan` is applied on `cancelled` or `completed` only if that plan's price, read inside the same transaction,

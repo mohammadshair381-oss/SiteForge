@@ -19,6 +19,7 @@ import {
 } from "../rate-limit";
 import { rateLimitSourceKey } from "../client-address";
 import { isTransactionsUnavailableError } from "../db-errors";
+import { isFeatureReady } from "../required-indexes";
 import { storefrontOrigin } from "../seo";
 import { resolveCommerceBusiness } from "../tenant";
 import { hashPassword, verifyPassword } from "./password";
@@ -124,15 +125,19 @@ export function assertCustomerAccountsEnabled(): void {
 
 /**
  * Wraps every customer-account route: enforces the feature gate FIRST (before
- * any parsing, rate limiting or database access), marks every response
- * (including errors) `no-store`, and replaces unexpected errors with a generic
- * 500 whose log line carries only a category (database errors can contain
- * customer emails).
+ * any parsing, rate limiting or database access), then that the indexes this
+ * feature rests on really exist, marks every response (including errors)
+ * `no-store`, and replaces unexpected errors with a generic 500 whose log line
+ * carries only a category (database errors can contain customer emails). The index
+ * check asks nothing about any account, so its answer reveals nothing about one.
  */
 export async function handleCustomerAuthRoute(fn: () => Promise<Response>): Promise<Response> {
   const response = await handle(async () => {
     assertCustomerAccountsEnabled();
     try {
+      if (!(await isFeatureReady("customer_accounts"))) {
+        throw new HttpError(503, "Customer accounts are not available right now. Please try again later.", "feature_not_ready");
+      }
       return await fn();
     } catch (error) {
       if (error instanceof HttpError || error instanceof ZodError || isTransactionsUnavailableError(error)) throw error;
@@ -448,9 +453,9 @@ function isDuplicateKeyError(error: unknown): boolean {
  * control. Re-registration can no longer replace the password or invalidate
  * the pending link.
  *
- * A duplicate-key error (concurrent registration, when the unique index
- * exists) is treated as "existing". Without the unique index, concurrent
- * requests can still create duplicates; the index is a go-live prerequisite.
+ * A duplicate-key error (concurrent registration) is treated as "existing". The
+ * unique index that raises it is what stops duplicates, so `handleCustomerAuthRoute`
+ * refuses every account route until it exists (`customer_accounts`, lib/required-indexes.ts).
  */
 export async function registerCustomer(
   business: BusinessDoc,

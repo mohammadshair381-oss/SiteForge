@@ -264,7 +264,8 @@ never change with the platform. Use `components/ui/*`, `confirmDialog` rather th
   email verification also requires the current password (pre-hijacking
   defence). Gated by `CUSTOMER_ACCOUNTS_ENABLED` (default off; only `"true"`
   enables; checked server-side on every request): wrap new customer routes in
-  `handleCustomerAuthRoute` and never enable the flag before the indexes in
+  `handleCustomerAuthRoute`, which also answers `503 feature_not_ready` until the unique indexes
+  (`customer_accounts`, `lib/required-indexes.ts`) exist, and never enable the flag before the indexes in
   `docs/customer-accounts.md` exist. Work whose cost depends on whether an
   account exists (lookups, tokens, email) runs after the response via
   `lib/after-response.ts`; log only `event`/`operation`/`category`, never
@@ -291,6 +292,11 @@ never change with the platform. Use `components/ui/*`, `confirmDialog` rather th
 - Routes: `requireUser`, `requireSuperAdmin`, `requireBusinessRole`. Pass the
   roles explicitly: the default list leaves out managers. `middleware.ts` refuses
   cross-site writes to every `/api` route (`isAllowedApiOrigin`).
+- Platform sign-in limits (`app/api/auth/login/route.ts`, `docs/security-monitoring.md`): only failures count against an
+  account, reserved before the password check and returned after a full sign-in. Sources are IPv4 addresses or IPv6 /64s
+  (`rateLimitSourceKey`). The known-device marker (`lib/auth/platform-device.ts`) only selects a failure budget and must
+  never be treated as authentication. An unconfirmed account's correct password stays counted, and no limit may reveal
+  whether an account exists.
 - Platform admin (`/api/admin/*`): every handler calls `requireSuperAdmin()`
   first. Business status changes are explicit `suspend` / `reactivate` actions
   with a required reason (reactivation returns to `draft`; only the owner's
@@ -324,7 +330,8 @@ never change with the platform. Use `components/ui/*`, `confirmDialog` rather th
   a payment of the same business; never change orders/payments or record
   refunds from a dispute. Admins may only append audited notes.
 - Billing (subscription API and the billing page) is owner-only; managers and
-  staff see only the plan name and limits on the overview. Razorpay Subscriptions
+  staff see only the plan name, its limits and whether it is in force: send entitlements through
+  `entitlementsForRole`, and never send them the status, a failed payment, a grace date or a period end. Razorpay Subscriptions
   (`lib/billing-razorpay.ts`, `docs/subscription-billing-architecture.md`) uses SiteForge's own
   account, separate from store checkout. Access changes only from a signed webhook followed by
   an API re-read, through `reduceSubscription`; never from a redirect or a client message. Live
@@ -465,7 +472,9 @@ never change with the platform. Use `components/ui/*`, `confirmDialog` rather th
 - `PAYMENT_PROVIDER=manual` is sandbox only. Live checkout is gated in
   `api/businesses/[id]/subscription`.
 - Webhooks (`api/webhooks/payments`) require a valid HMAC signature and dedupe on
-  `providerEventId`. Never trust frontend payment-success messages.
+  `providerEventId`. Never trust frontend payment-success messages. That legacy webhook cannot re-read a
+  provider: it is off unless configured, never runs with `PAYMENT_PROVIDER=razorpay`, needs
+  `LEGACY_PAYMENT_WEBHOOK_ENABLED` in production, and must never change a Razorpay-billed subscription.
 - Storefront orders: `Order.paymentMethod` is `online` | `cod` with NO default
   (absent = unknown, never COD). Business users may mark an order paid only via
   `confirmCodPayment` (COD orders only); `markOrderPaid` is called only by
@@ -540,6 +549,7 @@ never change with the platform. Use `components/ui/*`, `confirmDialog` rather th
   never treat a schema's index declaration as proof that it exists.
 - Scheduled work goes through `runScheduledJob` (`lib/scheduled-jobs.ts`: no overlap, at most 50
   items, outcomes recorded) behind `schedulerDenied`. No scheduler is set up; see `docs/scheduled-jobs.md`.
+  Expired reservations are released by `order-expiry` through the same conditional step as every other release; it never decides expiry.
 - Ecommerce: guest cart, checkout (stock reservation, idempotency), order
   status/cancel, owner order management, catalog search (`/products`) and
   cash on delivery for verified signed-in customers (owner-only

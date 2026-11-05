@@ -44,20 +44,23 @@ saved addresses and the email cannot be changed. Guest checkout is unchanged.
 - `.env.example` documents it as `CUSTOMER_ACCOUNTS_ENABLED=false`. No
   environment enables it automatically.
 
-**Future fail-closed index check (not implemented).** Checking indexes safely
-needs a real database, which this phase does not touch. Proposed design:
+**Index check.** With the flag on, every route wrapped in `handleCustomerAuthRoute`
+also needs the feature's unique indexes (`customer_accounts`,
+`lib/required-indexes.ts`): `{ business: 1, email: 1 }` on `customers`, which is
+what stops registrations at the same moment creating two accounts, and
+`{ tokenHash: 1 }` on `customeractiontokens`.
 
-- On the first gated request per process, call the read-only
-  `Customer.collection.indexes()` and `CustomerActionToken.collection.indexes()`.
-  Never `createIndexes`, `syncIndexes` or `ensureIndexes`.
-- Require a unique index with key exactly `{ business: 1, email: 1 }` and one
-  with key exactly `{ tokenHash: 1 }`.
-- Cache a success for the process lifetime. On a missing index or a listing
-  error, return 503 `customer_accounts_unavailable` and log
-  `event=index_check_failed`, retrying the check on later requests.
-- A missing collection also counts as "missing index", so it fails closed.
-- See "Automatic collection and index creation" (approach 2) for the wider
-  version of this idea, which needs its own design review.
+- It only looks at the database, and never creates an index or changes an account.
+- A missing index or collection, or a database that cannot say, answers
+  `503 feature_not_ready` with "Customer accounts are not available right now",
+  before any parsing, rate limiting, account lookup or email. It asks nothing about
+  any account, so the answer reveals nothing about one.
+- Once found ready it stays ready for the process. A missing index is looked for
+  again each minute, so creating one needs no restart. `/admin/settings` lists what is
+  missing.
+- Guest checkout does not use these routes and keeps working. The `/account/*` pages
+  still render with the flag on, and their forms show this message when submitted, so
+  create the indexes before turning the flag on.
 
 ## Session separation (`lib/auth/customer-session.ts`, `lib/auth/customer-guards.ts`)
 

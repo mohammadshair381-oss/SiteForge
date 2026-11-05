@@ -155,7 +155,10 @@ Products have a stock field in the dashboard; edits are compare-and-set
 - **Webhook** (`/api/webhooks/payments`): generic contract, HMAC-SHA256 of the
   raw body in `x-signature`, dedupe on `providerEventId` (unique index), single
   transaction, amount/currency must equal the plan. Unknown event types are
-  acknowledged and ignored; `payment.failed` does not suspend free plans.
+  acknowledged and ignored; `payment.failed` does not suspend free plans. It is off
+  unless configured, never runs with `PAYMENT_PROVIDER=razorpay`, needs
+  `LEGACY_PAYMENT_WEBHOOK_ENABLED=true` in production, and leaves Razorpay-billed
+  subscriptions alone (`docs/subscription-billing-architecture.md`).
 
 ### Not production-ready — required before taking real money
 

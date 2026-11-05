@@ -6,7 +6,7 @@ import { handle, ok, HttpError, readJson } from "@/lib/api";
 import { requireBusinessRole } from "@/lib/auth/guards";
 import { businessUpdateSchema } from "@/lib/validation";
 import { assertMediaUrlsOwned, assertSectionMediaOwned } from "@/lib/media-references";
-import { assertCanUseTheme, getEntitlements } from "@/lib/billing";
+import { assertCanUseTheme, entitlementsForRole, getEntitlements } from "@/lib/billing";
 import { getThemeMeta } from "@/lib/themes";
 import { Business } from "@/models/Business";
 import { Product } from "@/models/Product";
@@ -38,7 +38,7 @@ export async function GET(_request: Request, context: RouteContext) {
     return ok({
       business,
       role: membership.role,
-      entitlements,
+      entitlements: entitlementsForRole(entitlements, membership.role),
       theme: getThemeMeta(business.themeId),
       counts: { products: productCount, members: staffCount },
     });

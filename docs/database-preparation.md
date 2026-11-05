@@ -137,6 +137,7 @@ db.orders.createIndex({ business: 1, updatedAt: 1 })          // notification ca
 db.productreviews.createIndex({ business: 1, status: 1, createdAt: -1 }) // reviews sections on the storefront
 db.aiplangenerations.createIndex({ business: 1, createdAt: -1 }) // comparing saved plans with recent AI plans
 db.aiconversations.createIndex({ business: 1, createdBy: 1, createdAt: -1 }) // a person's website conversation
+db.orders.createIndex({ status: 1, inventoryState: 1, reservationExpiresAt: 1, _id: 1 }) // the scheduled reservation release
 ```
 
 ## Cart: the duplicate `{ business: 1 }` declaration (fixed in code)

@@ -18,7 +18,7 @@ import { formatPrice } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-const FEATURES: IndexedFeature[] = ["subscription_billing", "team_invitations", "custom_domains", "customer_carts", "notifications", "order_refunds"];
+const FEATURES: IndexedFeature[] = ["subscription_billing", "team_invitations", "custom_domains", "customer_carts", "notifications", "order_refunds", "customer_accounts"];
 
 function Status({ on, onLabel = "On", offLabel = "Off" }: { on: boolean; onLabel?: string; offLabel?: string }) {
   return <Badge value={on ? "active" : "inactive"} label={on ? onLabel : offLabel} />;

@@ -252,7 +252,7 @@ export default async function BusinessOverview({
         <StatTile label="Website pages" value={String(pageCount)} hint="Created in your site" icon={<Icon name="pages" size={16} />} />
         {!insights && (
           <>
-            <StatTile label="Plan" value={entitlements.planName} hint={entitlements.active ? `Subscription ${entitlements.status}` : "No active subscription"} icon={<Icon name="billing" size={16} />} />
+            <StatTile label="Plan" value={entitlements.planName} hint={entitlements.active ? (membership.role === "owner" ? `Subscription ${entitlements.status}` : "Active") : membership.role === "owner" ? "No active subscription" : "No active plan"} icon={<Icon name="billing" size={16} />} />
             <StatTile label="Team" value={String(memberCount)} hint={`of ${entitlements.staffLimit + 1} allowed`} icon={<Icon name="users" size={16} />} />
           </>
         )}
