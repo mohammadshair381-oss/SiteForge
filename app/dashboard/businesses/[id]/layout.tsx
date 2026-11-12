@@ -45,6 +45,12 @@ export default async function BusinessLayout({
   const status = STATUS[business.status] ?? STATUS.draft;
   // Billing is owner-only. Other members are still told when a store has no active plan, not why.
   const isOwner = membership.role === "owner";
+  // For them, only the day a working plan may stop: the earlier of the two dates the owner's banner already
+  // shows (the end of a failed payment's grace period, or the end of a subscription set to end). It is worked
+  // out here, on the server, and the banner shows the day alone: no reason, status or time of day goes with it.
+  const endingOn = subscription?.cancelAtPeriodEnd && subscription.currentPeriodEnd ? new Date(subscription.currentPeriodEnd) : null;
+  const memberDates = [entitlements.graceUntil ? new Date(entitlements.graceUntil) : null, endingOn].filter((date): date is Date => date !== null);
+  const memberWarningFrom = !isOwner && entitlements.active && memberDates.length > 0 ? new Date(Math.min(...memberDates.map((date) => date.getTime()))) : undefined;
 
   return (
     <div>
@@ -78,6 +84,7 @@ export default async function BusinessLayout({
         status={isOwner ? entitlements.status : ""}
         graceUntil={isOwner ? entitlements.graceUntil : null}
         endsOn={isOwner && subscription?.cancelAtPeriodEnd ? subscription.currentPeriodEnd : null}
+        memberWarningFrom={memberWarningFrom}
       />
       {children}
     </div>

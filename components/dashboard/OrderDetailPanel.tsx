@@ -8,6 +8,7 @@ import { Notice, Pill, type Tone } from "@/components/ui/Surface";
 import { useToastHelpers } from "@/components/ui/Toast";
 import { formatPrice } from "@/lib/format";
 import type { ManagedOrderDetail } from "@/lib/orders/management-detail";
+import { REVIEW_REASON_TEXT } from "@/lib/orders/timeline";
 
 const when = (value: string) => new Date(value).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 
@@ -21,6 +22,24 @@ const REFUND_STATUS: Record<string, { label: string; tone: Tone }> = {
   pending: { label: "In progress", tone: "warning" },
   processed: { label: "Refunded", tone: "success" },
   failed: { label: "Failed", tone: "danger" },
+};
+/** Each outcome has its own label: Razorpay's answers are never worded like the owner's release. */
+const OUTCOME_STATUS: Record<string, { label: string; tone: Tone }> = {
+  in_progress: { label: "In progress", tone: "warning" },
+  provider_confirmed: { label: "Refunded", tone: "success" },
+  recorded: { label: "Recorded", tone: "success" },
+  provider_failed: { label: "Failed", tone: "danger" },
+  owner_released: { label: "Hold released by owner", tone: "neutral" },
+};
+const LATE_STATUS: Record<string, { label: string; tone: Tone }> = {
+  recorded: { label: "Refunded after release", tone: "warning" },
+  provider_failed: { label: "Hold released · confirmed by Razorpay", tone: "neutral" },
+  needs_review: { label: "Needs review", tone: "danger" },
+};
+const LATE_ISSUE: Record<string, string> = {
+  provider_still_processing: "Razorpay has this refund but has not finished it yet. Its final answer is recorded when it arrives.",
+  payment_not_found: "It could not be matched to this order's payment, so nothing was recorded.",
+  does_not_fit_order: "It is more than this order has left to refund, so nothing was recorded. The customer may have been refunded twice.",
 };
 
 /**
@@ -49,6 +68,11 @@ export default function OrderDetailPanel({
   const [reason, setReason] = useState("");
   const [restock, setRestock] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Releasing a stuck refund's hold: which refund, the owner's reason and their explicit statement.
+  const [recoverId, setRecoverId] = useState<string | null>(null);
+  const [recoverReason, setRecoverReason] = useState("");
+  const [recoverConfirmed, setRecoverConfirmed] = useState(false);
+  const [recoverError, setRecoverError] = useState<string | null>(null);
   const base = `/api/businesses/${businessId}/manage/orders/${orderId}`;
 
   const apply = useCallback(
@@ -131,6 +155,51 @@ export default function OrderDetailPanel({
     } catch (err) {
       toastError("Refund not made", err instanceof Error ? err.message : "Please try again.");
       // The hold or outcome may have changed: show what the server now says.
+      const fresh = await fetch(base, { cache: "no-store" }).then((res) => (res.ok ? res.json() : null)).catch(() => null);
+      if (fresh) apply(fresh);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function openRecovery(refundId: string | null) {
+    setRecoverId(refundId);
+    setRecoverReason("");
+    setRecoverConfirmed(false);
+    setRecoverError(null);
+  }
+
+  /** Only after the owner has checked Razorpay's dashboard. The server checks everything again. */
+  async function submitRecovery(event: React.FormEvent, refund: ManagedOrderDetail["refunds"][number]) {
+    event.preventDefault();
+    if (!recoverConfirmed || recoverReason.trim().length < 5) {
+      setRecoverError("Confirm what Razorpay's dashboard shows, and say why in a few words.");
+      return;
+    }
+    const money = formatPrice(refund.amount, refund.currency);
+    const confirmed = await confirmDialog({
+      title: `Release the ${money} hold?`,
+      message: `Do this only if Razorpay's dashboard shows that no refund of ${money} was made for this payment. The amount can then be refunded again. If Razorpay did make it after all, it is recorded as soon as Razorpay reports it, and the customer could be refunded twice if you refund again meanwhile. Your reason is recorded with your name.`,
+      confirmLabel: "Release the hold",
+      tone: "danger",
+    });
+    if (!confirmed) return;
+    setBusy(true);
+    setRecoverError(null);
+    try {
+      const res = await fetch(`${base}/refund/recover`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refundId: refund.id, reason: recoverReason.trim(), confirmedNotRefunded: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "The hold could not be released.");
+      apply(data);
+      openRecovery(null);
+      success("Hold released", "The amount can be refunded again.");
+    } catch (err) {
+      // Said beside the form, so the owner sees why nothing changed.
+      setRecoverError(err instanceof Error ? err.message : "The hold could not be released. Please try again.");
       const fresh = await fetch(base, { cache: "no-store" }).then((res) => (res.ok ? res.json() : null)).catch(() => null);
       if (fresh) apply(fresh);
     } finally {
@@ -227,6 +296,40 @@ export default function OrderDetailPanel({
           </ul>
         )}
 
+        {(detail.refundReviews ?? []).length > 0 && (
+          <div className="mt-4">
+            <h3 className="text-sm font-semibold text-slate-900">Razorpay reports to review</h3>
+            <p className="mt-1 text-xs text-slate-600">
+              Razorpay reported these refunds for this order, but each could not be matched to exactly one refund here, or could not be recorded, so nothing was attached, recorded or released. They are not failures. Look each one up in your Razorpay dashboard. If one stays open, contact support with the Razorpay refund id shown.
+            </p>
+            <ul className="mt-2 space-y-2">
+              {detail.refundReviews.map((review) => (
+                <li key={review.providerRefundId} className={`rounded-lg border p-2.5 text-sm ${review.resolvedAt ? "border-slate-200 bg-white" : "border-red-200 bg-red-50"}`}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-medium tabular-nums text-slate-900">{formatPrice(review.amount, review.currency || order.currency || "USD")}</span>
+                    <Pill tone={review.resolvedAt ? "neutral" : "danger"}>{review.resolvedAt ? "Matched later" : review.reason === "does_not_fit_order" ? "Refunded in Razorpay, not recorded" : "Needs review"}</Pill>
+                  </div>
+                  <p className="mt-1 break-all text-xs text-slate-600">
+                    Razorpay refund {review.providerRefundId}
+                    {review.providerPaymentId ? ` · payment ${review.providerPaymentId}` : ""}
+                    {review.providerStatus ? ` · Razorpay status: ${review.providerStatus}` : ""}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-700">
+                    {review.reason === "ambiguous_match"
+                      ? `It matches ${review.candidateCount} refunds on this order by payment and amount, so it was not attached to any of them.`
+                      : `${REVIEW_REASON_TEXT[review.reason] ?? "It could not be attached to a refund on this order"}.`}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    First reported {when(review.firstSeenAt)}
+                    {review.lastSeenAt !== review.firstSeenAt ? ` · last ${when(review.lastSeenAt)}` : ""}
+                    {review.resolvedAt ? ` · matched to one refund ${when(review.resolvedAt)}` : ""}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {refunds.length > 0 && (
           <>
             <h3 className="mt-4 text-sm font-semibold text-slate-900">Refunds</h3>
@@ -235,17 +338,89 @@ export default function OrderDetailPanel({
                 <li key={refund.id} className="rounded-lg border border-slate-200 bg-white p-2.5 text-sm">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="font-medium tabular-nums text-slate-900">{formatPrice(refund.amount, refund.currency)}</span>
-                    <Pill tone={REFUND_STATUS[refund.status]?.tone ?? "neutral"}>{REFUND_STATUS[refund.status]?.label ?? refund.status}</Pill>
+                    {(() => {
+                      const shown = (refund.lateReport && LATE_STATUS[refund.lateReport.outcome]) || OUTCOME_STATUS[refund.outcome] || REFUND_STATUS[refund.status];
+                      return <Pill tone={shown?.tone ?? "neutral"}>{shown?.label ?? refund.status}</Pill>;
+                    })()}
                   </div>
                   <p className="mt-1 text-xs text-slate-500">
-                    {refund.provider === "manual" ? "Recorded by your team" : refund.startedOutside ? "Started in Razorpay" : "Through Razorpay"}
+                    {refund.provider === "manual"
+                      ? "Recorded by your team"
+                      : refund.confirmsRecoveryOf
+                        ? "Reported by Razorpay after the owner released an earlier hold"
+                        : refund.startedOutside
+                          ? "Started in Razorpay"
+                          : "Through Razorpay"}
                     {refund.mode === "test" ? " (test mode)" : ""} · {when(refund.createdAt)}
                     {refund.restock ? " · items back in stock" : ""}
                   </p>
                   {refund.reason && <p className="mt-1 break-words text-xs text-slate-600">{refund.reason}</p>}
-                  {refund.failureCode && <p className="mt-1 text-xs font-medium text-red-700">It did not go through ({refund.failureCode}).</p>}
+                  {refund.recovery ? (
+                    <div className="mt-1 space-y-0.5 break-words text-xs text-slate-600">
+                      <p className="font-medium text-slate-800">Refund hold manually released by the business owner.</p>
+                      <p>
+                        {refund.recovery.byName} released it {when(refund.recovery.at)}, confirming that no refund was visible in Razorpay&apos;s dashboard at the time. Razorpay itself never reported a result.
+                      </p>
+                      <p>Reason: {refund.recovery.reason}</p>
+                      <p>
+                        Status: {refund.recovery.previousStatus === "pending" ? "in progress" : refund.recovery.previousStatus} → hold released. Held on the order: {formatPrice(refund.recovery.heldBefore, refund.currency)} before, {formatPrice(refund.recovery.heldAfter, refund.currency)} after.
+                      </p>
+                    </div>
+                  ) : (
+                    refund.outcome === "provider_failed" && (
+                      <p className="mt-1 text-xs font-medium text-red-700">
+                        {refund.failureCode === "account_unavailable"
+                          ? "It was never sent: the Razorpay account this payment was taken with was not available. Nothing was refunded."
+                          : `Razorpay refused or failed it${refund.failureCode ? ` (${refund.failureCode})` : ""}. Nothing was refunded.`}
+                      </p>
+                    )
+                  )}
+                  {refund.lateReport && (
+                    <p className={`mt-1 break-words text-xs font-medium ${refund.lateReport.outcome === "provider_failed" ? "text-slate-700" : "text-red-700"}`}>
+                      {refund.lateReport.outcome === "recorded"
+                        ? `Afterwards, ${when(refund.lateReport.at)}, Razorpay reported that this refund was made after all. It is recorded as its own refund on this order. Check that the customer was not refunded twice.`
+                        : refund.lateReport.outcome === "provider_failed"
+                          ? `Afterwards, ${when(refund.lateReport.at)}, Razorpay confirmed that this refund was not made.`
+                          : `Afterwards, ${when(refund.lateReport.at)}, Razorpay reported on this refund (${refund.lateReport.providerStatus}). ${LATE_ISSUE[refund.lateReport.issue ?? ""] ?? "Check it in your Razorpay dashboard."}`}
+                    </p>
+                  )}
                   {refund.status === "pending" && refund.provider === "razorpay" && isOwner && (
-                    <Button variant="secondary" className="mt-2" disabled={busy} onClick={() => void checkRefund(refund.id)}>Check with Razorpay</Button>
+                    <div className="mt-2 space-y-2">
+                      <div className="flex flex-wrap gap-2">
+                        <Button variant="secondary" disabled={busy} onClick={() => void checkRefund(refund.id)}>Check with Razorpay</Button>
+                        {refund.recoverable && !refund.recoveryBlockedByReview && recoverId !== refund.id && (
+                          <Button variant="ghost" disabled={busy} onClick={() => openRecovery(refund.id)}>Razorpay shows no refund…</Button>
+                        )}
+                      </div>
+                      {refund.recoverable && refund.recoveryBlockedByReview && (
+                        <p className="text-xs font-medium text-red-700">
+                          Razorpay has reported a refund of this amount on this payment that is still waiting for review (see &quot;Razorpay reports to review&quot;). It may be this refund, so its hold cannot be released. Check the refund in your Razorpay dashboard and contact support to have the report reviewed.
+                        </p>
+                      )}
+                      {!refund.knownToRazorpay && !refund.recoverable && refund.recoverableFrom && (
+                        <p className="text-xs text-slate-500">If Razorpay still has not answered by {when(refund.recoverableFrom)}, and its dashboard shows no refund for this payment, you can release this hold.</p>
+                      )}
+                      {recoverId === refund.id && (
+                        <form onSubmit={(event) => void submitRecovery(event, refund)} className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                          <p className="text-xs text-amber-950">
+                            Open this payment in your Razorpay dashboard first. Release the hold only if Razorpay shows no refund of {formatPrice(refund.amount, refund.currency)} for it. Nothing is sent to Razorpay.
+                          </p>
+                          <label className={labelClass}>
+                            Why you are releasing it (only your team sees this)
+                            <textarea rows={2} required minLength={5} maxLength={500} value={recoverReason} onChange={(e) => setRecoverReason(e.target.value)} className={`mt-1.5 ${inputClass}`} />
+                          </label>
+                          <label className="flex min-h-10 items-start gap-2 text-sm text-slate-800">
+                            <input type="checkbox" checked={recoverConfirmed} onChange={(e) => setRecoverConfirmed(e.target.checked)} className="mt-0.5 h-4 w-4" />
+                            <span>I checked this payment in Razorpay&apos;s dashboard, and it shows no refund of {formatPrice(refund.amount, refund.currency)}.</span>
+                          </label>
+                          {recoverError && <p role="alert" className="text-xs font-medium text-red-700">{recoverError}</p>}
+                          <div className="flex flex-wrap gap-2">
+                            <Button type="submit" disabled={busy || !recoverConfirmed || recoverReason.trim().length < 5}>{busy ? "Working…" : "Release the hold"}</Button>
+                            <Button variant="secondary" disabled={busy} onClick={() => openRecovery(null)}>Cancel</Button>
+                          </div>
+                        </form>
+                      )}
+                    </div>
                   )}
                 </li>
               ))}

@@ -19,6 +19,7 @@ export default function PlanStatusBanner({
   status,
   graceUntil,
   endsOn,
+  memberWarningFrom,
 }: {
   /** Suspension is said first: a plan cannot fix it. */
   suspended?: boolean;
@@ -31,6 +32,11 @@ export default function PlanStatusBanner({
   graceUntil?: Date | null;
   /** Set when the subscription will end at this date. */
   endsOn?: Date | null;
+  /**
+   * For members who are not the owner: the day a working plan may stop, with no reason attached. Set only
+   * from the same dates the owner is shown; `undefined` when there is nothing to warn about.
+   */
+  memberWarningFrom?: Date | null;
 }) {
   const action = isOwner ? <ButtonLink href={`/dashboard/businesses/${businessId}/billing`} variant="secondary">{active ? "Review billing" : "Choose a plan"}</ButtonLink> : undefined;
   const ask = isOwner ? "" : " Ask the store owner to review the plan.";
@@ -62,6 +68,15 @@ export default function PlanStatusBanner({
     return (
       <Notice tone="warning" className="mb-5" title="This subscription is ending" action={action}>
         It ends on {day(endsOn)}. After that the store goes offline unless a plan is active.{ask}
+      </Notice>
+    );
+  }
+  // Managers and staff: that something may change, and who to ask. Never why: no status, payment or billing word.
+  if (!isOwner && memberWarningFrom !== undefined) {
+    return (
+      <Notice tone="warning" className="mb-5" title="This store may lose access to some features">
+        {memberWarningFrom && memberWarningFrom.getTime() > Date.now() ? `This may happen on ${day(memberWarningFrom)}. ` : "This may happen soon. "}
+        Please contact the store owner.
       </Notice>
     );
   }

@@ -84,6 +84,35 @@ export interface OrderDoc {
   refundHoldTotal?: number;
   /** The owner's own note. Never shown to the shopper. */
   internalNote?: string;
+  /**
+   * Razorpay refunds reported for this order that could not be attached to exactly one refund record
+   * (lib/payments/order-refunds.ts `recordRefundReview`). Nothing was decided about them: the owner reviews
+   * them. Never shown to the shopper, and not read unless asked for (`select: false`).
+   */
+  refundReviews?: Array<{
+    providerRefundId: string;
+    providerPaymentId: string;
+    amountMinor: number;
+    currency: string;
+    providerStatus: string;
+    /**
+     * Why it was not attached: it matched several refunds; the released refund it matched is bound to another
+     * Razorpay refund; the one refund it matched changed before it could take it (`claim_lost`); or another
+     * record already holds this Razorpay refund id (`duplicate_conflict`); or Razorpay processed it, no refund here
+     * stands for it, and it could not be recorded because it does not fit the order (`does_not_fit_order`).
+     */
+    reason: "ambiguous_match" | "released_refund_bound_elsewhere" | "claim_lost" | "duplicate_conflict" | "does_not_fit_order";
+    /** The refund records it could have been: none of them was changed. */
+    candidateRefunds: unknown[];
+    /** Earliest and latest report seen: first only moves back, last only forward. */
+    firstSeenAt: Date;
+    lastSeenAt: Date;
+    /**
+     * Set once a refund record of this order is confirmed to hold this Razorpay refund id. Never cleared: an
+     * older report never reopens it. Unresolved entries are never removed to make room.
+     */
+    resolvedAt: Date | null;
+  }>;
   /** Delivery address when the store ships (validated server-side). */
   shippingAddress?: {
     name: string;
@@ -277,6 +306,26 @@ const orderSchema = new Schema<OrderDoc>(
     refundedTotal: { type: Number, min: 0 },
     refundHoldTotal: { type: Number, min: 0 },
     internalNote: { type: String, trim: true, maxlength: 1000 },
+    // No index and no default: written only by lib/payments/order-refunds.ts, read only by the order's team view.
+    refundReviews: {
+      type: [
+        {
+          providerRefundId: { type: String, required: true, maxlength: 80 },
+          providerPaymentId: { type: String, default: "", maxlength: 80 },
+          amountMinor: { type: Number, required: true },
+          currency: { type: String, default: "", maxlength: 3 },
+          providerStatus: { type: String, default: "", maxlength: 20 },
+          reason: { type: String, enum: ["ambiguous_match", "released_refund_bound_elsewhere", "claim_lost", "duplicate_conflict", "does_not_fit_order"], required: true },
+          candidateRefunds: { type: [Schema.Types.ObjectId], default: [] },
+          firstSeenAt: { type: Date, required: true },
+          lastSeenAt: { type: Date, required: true },
+          resolvedAt: { type: Date, default: null },
+          _id: false,
+        },
+      ],
+      default: undefined,
+      select: false,
+    },
     shippingAddress: { type: orderAddressSchema, default: undefined },
     // No defaults: absent = legacy/unfulfilled, never back-filled.
     fulfillmentStatus: { type: String, enum: ORDER_FULFILLMENT_STATUSES },

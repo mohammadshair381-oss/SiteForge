@@ -246,7 +246,9 @@ never change with the platform. Use `components/ui/*`, `confirmDialog` rather th
   before the provider is called, and counts as refunded only from Razorpay's answer,
   re-read from its API. One provider refund is one record: Razorpay refunds stay off until the
   unique `orderrefunds` index exists (`order_refunds`). Razorpay refunds are owner-only; recording one made another
-  way is owner or manager. Order emails go through `queueOrderEmail` and must never
+  way is owner or manager. Only an owner may release a stuck refund's hold (`recoverStuckRefund`): Razorpay refunds with no
+  Razorpay id, a day old, with a reason and an explicit statement, recorded in `OrderRefund.recovery` in the same transaction.
+  Never start a refund from it, and never release a hold automatically or because a request timed out. Order emails go through `queueOrderEmail` and must never
   change an order or an API answer. Team notes (`Order.internalNote`) never reach a
   shopper-facing view or the CSV export.
 - Customer accounts are NOT platform users. Customer sessions use the
@@ -331,7 +333,8 @@ never change with the platform. Use `components/ui/*`, `confirmDialog` rather th
   refunds from a dispute. Admins may only append audited notes.
 - Billing (subscription API and the billing page) is owner-only; managers and
   staff see only the plan name, its limits and whether it is in force: send entitlements through
-  `entitlementsForRole`, and never send them the status, a failed payment, a grace date or a period end. Razorpay Subscriptions
+  `entitlementsForRole`, and never send them the status, a failed payment, a grace date or a period end. Their only
+  warning is the neutral "may lose access to some features" banner, with a day from the owner's own banner dates and no reason. Razorpay Subscriptions
   (`lib/billing-razorpay.ts`, `docs/subscription-billing-architecture.md`) uses SiteForge's own
   account, separate from store checkout. Access changes only from a signed webhook followed by
   an API re-read, through `reduceSubscription`; never from a redirect or a client message. Live

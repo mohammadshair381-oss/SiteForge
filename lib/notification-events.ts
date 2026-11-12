@@ -122,17 +122,59 @@ const REFUND_TEXT: Record<string, { title: string; severity: NotificationSeverit
   failed: { title: "A refund did not go through", severity: "danger" },
 };
 
-export function refundEvent(refund: { _id: unknown; status: string; amount: number; currency: string; processedAt?: Date | null; updatedAt?: Date }, orderNumber: string, base: string): NotificationEvent | null {
+/** The fields a refund's notification needs: these are what every caller selects. */
+export const REFUND_EVENT_FIELDS = "order status amount currency processedAt updatedAt recovery.at lateProviderReport confirmsRecoveryOf";
+
+/**
+ * Three different things, never worded alike: Razorpay confirming a refund was made, Razorpay confirming it
+ * failed, and the owner releasing the hold of one whose outcome was unknown, which is their statement and not
+ * Razorpay's. Whatever Razorpay says about a released refund afterwards is its own notice.
+ */
+export function refundEvent(
+  refund: {
+    _id: unknown;
+    status: string;
+    amount: number;
+    currency: string;
+    processedAt?: Date | null;
+    updatedAt?: Date;
+    recovery?: { at: Date } | null;
+    lateProviderReport?: { at: Date; outcome: string; providerStatus: string } | null;
+    confirmsRecoveryOf?: unknown;
+  },
+  orderNumber: string,
+  base: string,
+): NotificationEvent | null {
+  const amount = formatPrice(refund.amount, refund.currency);
+  const common = { kind: "refund" as const, link: orderLink(base, orderNumber), audience: MANAGERS };
+  const late = refund.lateProviderReport;
+  if (refund.recovery && late) {
+    const text =
+      late.outcome === "recorded"
+        ? { title: "Razorpay confirmed a refund whose hold was released", severity: "warning" as NotificationSeverity, body: `Razorpay reports that ${amount} on order #${orderNumber} was refunded after all, and it is now recorded. Check that the customer was not refunded twice.` }
+        : late.outcome === "provider_failed"
+          ? { title: "Razorpay confirmed a refund was not made", severity: "info" as NotificationSeverity, body: `${amount} on order #${orderNumber}: Razorpay confirms what the owner found when releasing its hold.` }
+          : { title: "A released refund needs your review", severity: "danger" as NotificationSeverity, body: `Razorpay reported on ${amount} on order #${orderNumber} after its hold was released, and it could not be recorded automatically. Check the order and your Razorpay dashboard.` };
+    return { ...common, ...text, dedupeKey: `refund:${refund._id}:late:${late.outcome}:${late.providerStatus}`, occurredAt: new Date(late.at) };
+  }
+  if (refund.recovery) {
+    return {
+      ...common,
+      dedupeKey: `refund:${refund._id}:recovered`,
+      severity: "warning",
+      title: "Refund hold manually released by the owner",
+      body: `${amount} on order #${orderNumber}. The owner confirmed that Razorpay's dashboard showed no refund at the time. Razorpay never reported a result.`,
+      occurredAt: new Date(refund.recovery.at),
+    };
+  }
   const text = REFUND_TEXT[refund.status];
   if (!text) return null;
   return {
+    ...common,
     dedupeKey: `refund:${refund._id}:${refund.status}`,
-    kind: "refund",
     severity: text.severity,
-    title: text.title,
-    body: `${formatPrice(refund.amount, refund.currency)} on order #${orderNumber}.`,
-    link: orderLink(base, orderNumber),
-    audience: MANAGERS,
+    title: refund.status === "processed" && refund.confirmsRecoveryOf ? "Refund completed: confirmed by Razorpay after its hold was released" : text.title,
+    body: `${amount} on order #${orderNumber}.`,
     occurredAt: new Date(refund.processedAt ?? refund.updatedAt ?? Date.now()),
   };
 }
@@ -325,7 +367,7 @@ export function notifyOrder(what: OrderNotification, businessId: string, orderId
 
 export function notifyRefund(businessId: string, refundId: unknown): void {
   queue(businessId, async () => {
-    const refund = await OrderRefund.findOne({ _id: refundId, business: businessId }).select("order status amount currency processedAt updatedAt").lean();
+    const refund = await OrderRefund.findOne({ _id: refundId, business: businessId }).select(REFUND_EVENT_FIELDS).lean();
     if (!refund) return [];
     const order = await Order.findOne({ _id: refund.order, business: businessId }).select("orderNumber").lean<{ orderNumber: string }>();
     return order ? [refundEvent(refund, order.orderNumber, dashboardBase(businessId))] : [];

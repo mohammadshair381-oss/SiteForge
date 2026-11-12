@@ -11,6 +11,7 @@ import {
   orderPaidEvent,
   orderPlacedEvent,
   paymentFailedEvent,
+  REFUND_EVENT_FIELDS,
   refundEvent,
   stockEvents,
   storeStatusEvents,
@@ -66,7 +67,7 @@ async function orderCatchUp(businessId: string, since: Date, base: string): Prom
   // One read: every change to an order moves its `updatedAt`, oldest first so nothing is skipped.
   const [orders, refunds, failures, disputes] = await Promise.all([
     Order.find({ business, updatedAt: { $gte: since } }).sort({ updatedAt: 1 }).limit(ORDER_BATCH).select("orderNumber total currency paymentMethod items.quantity createdAt updatedAt paidAt cancelledAt cancelReason shippedAt deliveredAt").lean(),
-    OrderRefund.find({ business, updatedAt: { $gte: since }, status: { $in: ["processed", "failed"] } }).sort({ updatedAt: 1 }).limit(BATCH).select("order status amount currency processedAt updatedAt").lean(),
+    OrderRefund.find({ business, updatedAt: { $gte: since }, status: { $in: ["processed", "failed"] } }).sort({ updatedAt: 1 }).limit(BATCH).select(REFUND_EVENT_FIELDS).lean(),
     OrderPayment.find({ business, lastFailureAt: { $gte: since } }).sort({ lastFailureAt: 1 }).limit(BATCH).select("order lastFailureAt").lean(),
     PaymentDispute.find({ business, createdAt: { $gte: since } }).sort({ createdAt: 1 }).limit(BATCH).select("order createdAt").lean(),
   ]);

@@ -238,6 +238,156 @@ Razorpay. **No real refund has been made.**
 - A refund of the whole remainder closes the order as `refunded` and can return its
   items to stock once. The order's coupon use is kept.
 
+### Releasing a stuck refund (owner only)
+
+A refund whose first answer was lost, and that Razorpay never gave an id, can stay in
+progress for good if Razorpay never reports it. Then the owner, and only the owner,
+can release its hold (`POST /api/businesses/[id]/manage/orders/[orderId]/refund/recover`,
+`recoverStuckRefund` in `lib/payments/order-refunds.ts`), after checking the payment in
+Razorpay's own dashboard.
+
+- **Who:** an owner with a verified email (`requireBusinessRole(id, ["owner"])`), from the
+  same site, at most 20 times an hour per store.
+- **Which refunds:** a Razorpay refund still in progress, with no Razorpay id, started at
+  least 24 hours ago. One with an id is decided by Razorpay's answer alone ("Check with
+  Razorpay", after reconnecting the account if needed), never by an owner. A settled,
+  failed or already released refund is refused with a reason.
+- **What the owner gives:** a reason (5 to 500 characters, plain text) and the statement
+  `confirmedNotRefunded: true`, checked by the server, after a checkbox and a confirmation
+  in the dashboard.
+- **What happens:** in one transaction, the refund and order are read again. One
+  conditional update, which needs the refund still waiting with no id and no earlier
+  recovery, moves it to `failed` (`failureCode: owner_confirmed_not_refunded`), and writes
+  the record of it. Then the order's hold goes down by its amount. So it happens once, however
+  often it is asked, and a concurrent change answers `409 refund_changed`.
+- **Never while a matching report waits for review:** the same transaction reads the order's
+  `refundReviews`. If any unresolved entry has the same Razorpay payment and amount as this refund
+  (`blockingRefundReview`; any amount match for a refund that never recorded its payment), the release is
+  refused with `409 refund_review_pending` and an explanation, because that report may be this very refund.
+  Nothing about the review is changed. A report added while the owner is confirming changes the order
+  document, so the release's own write to it conflicts, the transaction runs again and sees it. That write is a
+  conditional claim on the order's `updatedAt` as read, and always moves it strictly forward (automatic
+  timestamps off for that write), so it is a real write even when the hold is already 0, and the release is
+  refused unless it modified the order. The order page
+  hides the release button and explains why (`recoveryBlockedByReview`, display only).
+- **The record** (`OrderRefund.recovery`, written only by that update and never changed):
+  who (`by`), when (`at`), why (`reason`), the previous and resulting status, and the
+  order's held amount before and after. With the refund's own business, order, payment and
+  idempotency key, that identifies everything involved. Owners and managers see all of it on
+  the order: who released it (by name), when, the reason, in progress → hold released, and
+  the amount held on the order before and after.
+- **Nothing is sent to Razorpay,** and no refund is started. Nothing releases a hold by itself.
+
+#### Three outcomes, never shown alike
+
+A released refund keeps `status: "failed"`, so totals and older reports still count nothing
+refunded for it. Every screen and notice decides by more than that status:
+
+| Outcome | How it is told apart | What the owner and managers see |
+|---|---|---|
+| Razorpay confirmed the refund | `processed` | "Refunded", "Refund completed" |
+| Razorpay reported it failed, or it was never sent | `failed` with no `recovery` | "Failed", "did not go through", and whether Razorpay refused it or no account was available |
+| The owner released the hold of an unknown outcome | `failed` with `recovery` | "Hold released by owner", "Refund hold manually released by the owner. The owner confirmed that no refund was visible in Razorpay's dashboard at the time. Razorpay never reported a result." It is never called failed. |
+
+The order history, the order's refund list and its notifications (`refundEvent`, also used by
+the notification catch-up, both selecting `REFUND_EVENT_FIELDS`) follow this table.
+
+#### When Razorpay answers after a release
+
+Its answer can come from a check that was already running, or from a webhook. Neither can settle
+the released record, whose hold is gone, and `recovery` is never changed. What Razorpay said is
+written beside it (`lateProviderReport`), and the owner and managers are told.
+
+**Which refund a webhook means** (`syncRefundFromProvider`), always after re-reading the refund from
+Razorpay with this store's key:
+
+1. **Razorpay's refund id.** A record holding it, or a released refund that an earlier report bound to it.
+2. **Otherwise, our own requests it could be:** on the same order and payment, for the same amount, either
+   still waiting (its answer was lost) or released with no report yet. Both kinds are counted together.
+   - **Exactly one:** that one is used. For one still waiting, `applyRemoteRefund` reports what happened:
+     `attached` (it took the id now), `already_attached` (it held this id), `claim_lost` (it changed meanwhile:
+     another Razorpay refund or no longer waiting), `duplicate_conflict` (the unique index: another record already
+     holds this Razorpay refund id, which is different from this record holding it), `mismatch`, or `late_report`
+     (released meanwhile, handled as below). Only the first two count as success. `claim_lost` and
+     `duplicate_conflict` record a review with that reason and answer `needs_review`; no refund record is created.
+   - **More than one:** none is used, never the oldest, newest or first found. The report is kept on the order
+     (`Order.refundReviews`: Razorpay's refund id, payment, amount, Razorpay's status, the reason, the refunds
+     it could have been, first and last seen), and shown on the order as "Razorpay reports to review". These are
+     marked "not failures": nothing was attached, recorded or released.
+3. **None of ours:** a refund started in Razorpay's own dashboard, recorded as a refund of its own.
+   - **Processed, but it does not fit the order** (more than the order has left to refund, or the order is no
+     longer paid or refunded): it is NOT recorded, because a made-up record would only hide a possible double refund.
+     Instead it is kept on the order as a review with the reason `does_not_fit_order` (Razorpay's refund id, payment,
+     amount, status, no candidates, first and last seen), and the webhook answers `needs_review`. The order shows it as
+     "Refunded in Razorpay, not recorded" with an explanation that the customer may have been refunded twice; it is
+     never shown as a failed refund. Delivered again, the same entry is updated. If the order later has room for it,
+     a later delivery records it normally and the entry is marked matched.
+   - **Refused by the unique index, with no record of this store holding it** (the id is held outside this store):
+     kept as a `duplicate_conflict` review the same way, never dropped. For a released refund the release is listed
+     as its candidate.
+   - Not processed yet: nothing moved, so nothing is kept; Razorpay's later "processed" event is handled as above.
+
+**Review entries** (`recordRefundReview`, `resolveRefundReviewIfAttached`):
+- One per Razorpay refund id. Nothing is recorded for a refund already attached to a record of the order, or held
+  by any refund record of this store (so a `duplicate_conflict` inside the store, where the refund is attached,
+  makes no entry); an open entry left from earlier is then closed by the same confirmed check.
+- After writing, the attachment is checked again: if another delivery attached the refund meanwhile, the entry is
+  closed. Receiving a report never closes one by itself.
+- Reported again, the open entry is updated: status, reason and candidates replaced, `lastSeenAt` only moves
+  forward (`$max`) and `firstSeenAt` only backward (`$min`), so a slow or older delivery never hides the latest
+  observation. Two deliveries adding the same new entry: the one whose add finds it present updates it instead.
+- Never removed to make room. Past 20 entries, only the oldest RESOLVED ones are removed. If every entry is
+  unresolved, all are kept, the new one is added, and a warning is logged.
+- Resolved only once a refund record of the order is confirmed to hold that Razorpay refund id (its
+  `providerRefundId`, or a released refund's settled report bound to it), checked again right before the
+  conditional write, which needs `resolvedAt: null`, so it happens once. The entry, its details and
+  `resolvedAt` are kept. A resolved entry is never reopened: a later or older report for that id leaves it alone.
+
+**One Razorpay refund per released refund.** The first report binds a released refund to that Razorpay refund
+id (`writeLateReport`). A report for any other id never replaces it: it is kept on the order for review as
+"already linked to a different Razorpay refund". For the same id, a newer state replaces the report, and the
+report it replaces is kept in `lateProviderReportHistory` (the last 10). A report that says nothing new is not
+written, so retries neither change nor announce anything. Only a report for that same id can resolve a "Needs
+review".
+
+- **Processed:** the money did go back. If it fits what is left on the order, it is recorded as
+  its own refund pointing back to the released one (`confirmsRecoveryOf`). That new record, the
+  order's hold and the released refund's report are written in ONE transaction, so none can be
+  left without the others. If a record for that Razorpay refund already exists, the report is
+  linked to it in the same way. A record whose report is missing anyway, from before this or for
+  any other reason, gets it back the next time Razorpay reports the refund. The released refund then
+  shows "Refunded after release", and the new one "Reported by Razorpay after the owner released an
+  earlier hold", never "Started in Razorpay". The notice asks the owner to check that the customer was not
+  refunded twice. This replaces an earlier "failed" report for the same Razorpay refund.
+- **Failed:** Razorpay confirms what the owner found. A later "processed" for the same refund still replaces it.
+- **Still processing, no matching payment, or more than the order has left:** nothing is
+  decided, recorded or released. It is marked "Needs review" with the reason, logged, and the
+  owner is told. A later final answer for the same Razorpay refund is handled the same way. Once
+  one is recorded, it is final.
+
+#### The remaining double-refund risk
+
+The release rests on the owner's word. If Razorpay did make the refund and the owner refunds the
+order again before Razorpay's answer arrives, the customer is refunded twice, and only the owner can
+recover that money. SiteForge cannot rule this out without asking Razorpay for the payment's refunds,
+which it does not do. What limits it:
+- the release is allowed only a day after the refund started, and only when Razorpay never gave it an id;
+- the owner must state what Razorpay's dashboard shows, and is warned of exactly this before confirming;
+- the release is refused while an unresolved Razorpay report on the order has the same payment and amount;
+- if Razorpay's answer comes, the refund is recorded as made, and the owner is told to check.
+If that answer never comes, the refund stays recorded as not made.
+
+**Matching by amount only.** When Razorpay's answer to our own request was lost, a report is matched to our
+refunds by order, payment and amount alone (never by notes). Two refunds of the same amount on the same payment
+cannot be told apart: such a report is never attached, and stays a review. One that Razorpay processed but that
+does not fit the order is kept as `does_not_fit_order`. SiteForge offers no way to attach a review to a refund
+by hand.
+
+**Escalating an open review.** An owner who sees "Needs review" or "Refunded in Razorpay, not recorded" should look
+the Razorpay refund id up in Razorpay's dashboard, check whether the customer was refunded twice, and contact
+support with that id and the order. While a review with the same payment and amount is open, the matching refund's
+hold cannot be released. Closing a review without a confirmed attachment needs a reviewed database change.
+
 ## Failed attempts and cancelled orders
 
 A signed `payment.failed` event only notes the attempt on the open `OrderPayment`
