@@ -7,7 +7,7 @@ import {
   businessUpdateSchema,
   productCreateSchema,
   productUpdateSchema,
-} from "../../lib/validation";
+} from "../../backend/lib/validation";
 
 // Focused tests for the protocol allowlist added to the image/logo URL schemas
 // in Phase 4.10. `z.string().url()` alone accepts `javascript:`, `data:` and

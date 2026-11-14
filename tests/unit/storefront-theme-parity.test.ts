@@ -7,10 +7,10 @@ import { renderToString } from "react-dom/server";
 
 (globalThis as unknown as { React?: typeof React }).React = React;
 
-import type { StorefrontView } from "../../lib/storefront";
-import type { Section } from "../../lib/sections";
+import type { StorefrontView } from "../../backend/lib/storefront";
+import type { Section } from "../../backend/lib/sections";
 
-import { THEME_IDS } from "../../lib/constants";
+import { THEME_IDS } from "../../backend/lib/constants";
 
 function makeView(themeId: StorefrontView["themeId"]): StorefrontView {
   return {
@@ -73,7 +73,7 @@ async function renderTheme(
   themeId: StorefrontView["themeId"],
   props: { preview?: boolean; editable?: boolean } = {},
 ): Promise<string> {
-  const { default: ThemeRenderer } = await import("../../components/storefront/ThemeRenderer");
+  const { default: ThemeRenderer } = await import("../../frontend/components/storefront/ThemeRenderer");
   return renderToString(React.createElement(ThemeRenderer, {
     view: makeView(themeId),
     productHrefBase: "/product",

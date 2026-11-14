@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { assertStartupEnv } from "../../lib/env";
+import { assertStartupEnv } from "../../backend/lib/env";
 
 // This file deliberately configures an INVALID environment. `env()` only caches
 // a *successful* parse, so keeping every case throwing means the cache stays

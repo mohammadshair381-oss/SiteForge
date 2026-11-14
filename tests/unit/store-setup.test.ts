@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { BRAND_PRESETS, brandPresetFor, primaryContrastWithWhite } from "../../lib/brand-presets";
-import { PRESET_KEYS } from "../../lib/storefront-presets";
-import { THEME_IDS } from "../../lib/constants";
+import { BRAND_PRESETS, brandPresetFor, primaryContrastWithWhite } from "../../backend/lib/brand-presets";
+import { PRESET_KEYS } from "../../backend/lib/storefront-presets";
+import { THEME_IDS } from "../../backend/lib/constants";
 import {
   SETUP_STEPS,
   nextStep,
@@ -13,7 +13,7 @@ import {
   stepStates,
   storeReadiness,
   type SetupFacts,
-} from "../../lib/store-setup";
+} from "../../backend/lib/store-setup";
 
 const facts = (over: Partial<SetupFacts> = {}): SetupFacts => ({
   name: "Corner Shop",

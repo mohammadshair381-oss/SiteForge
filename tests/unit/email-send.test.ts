@@ -12,7 +12,7 @@ delete process.env.EMAIL_FROM;
 delete process.env.EMAIL_REPLY_TO;
 delete process.env.APP_URL;
 
-import { clearEmailOutbox, getEmailOutbox, sendEmail } from "../../lib/email";
+import { clearEmailOutbox, getEmailOutbox, sendEmail } from "../../backend/lib/email";
 
 beforeEach(() => clearEmailOutbox());
 

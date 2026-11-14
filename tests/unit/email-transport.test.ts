@@ -11,7 +11,7 @@ import {
   RESEND_ENDPOINT,
   type EmailMessage,
   type ResolvedEmailConfig,
-} from "../../lib/email";
+} from "../../backend/lib/email";
 
 // Transport tests never touch the network: fetch is always stubbed. Safe
 // dummies only; the "API key" is an obvious placeholder that must never appear

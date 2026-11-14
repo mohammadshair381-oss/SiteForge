@@ -6,7 +6,7 @@ import {
   logoutDialogReducer,
   runLogoutOnce,
   type LogoutDialogState,
-} from "../../lib/logout-confirmation";
+} from "../../backend/lib/logout-confirmation";
 
 test("clicking Sign Out opens the confirmation dialog", () => {
   assert.equal(logoutDialogReducer("closed", "OPEN"), "open");
@@ -72,15 +72,15 @@ test("repeated confirmation clicks cannot issue duplicate logout requests", asyn
 test("desktop and mobile sign-out placements both use the shared confirmation button", () => {
   const root = process.cwd();
   const dashboardShell = readFileSync(
-    resolve(root, "components/dashboard/DashboardShell.tsx"),
+    resolve(root, "frontend/components/dashboard/DashboardShell.tsx"),
     "utf8",
   );
   const mobileNavigation = readFileSync(
-    resolve(root, "components/dashboard/MobileNav.tsx"),
+    resolve(root, "frontend/components/dashboard/MobileNav.tsx"),
     "utf8",
   );
   const logoutButton = readFileSync(
-    resolve(root, "components/dashboard/LogoutButton.tsx"),
+    resolve(root, "frontend/components/dashboard/LogoutButton.tsx"),
     "utf8",
   );
 
@@ -94,7 +94,7 @@ test("desktop and mobile sign-out placements both use the shared confirmation bu
 
 test("sign-out dialog is portaled above navigation and sized for the mobile viewport", () => {
   const logoutButton = readFileSync(
-    resolve(process.cwd(), "components/dashboard/LogoutButton.tsx"),
+    resolve(process.cwd(), "frontend/components/dashboard/LogoutButton.tsx"),
     "utf8",
   );
 

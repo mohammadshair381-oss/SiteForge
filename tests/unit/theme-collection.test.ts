@@ -7,12 +7,12 @@ import { renderToString } from "react-dom/server";
 
 (globalThis as unknown as { React?: typeof React }).React = React;
 
-import type { StorefrontProduct, StorefrontView } from "../../lib/storefront";
-import { buildCommerceData } from "../../lib/storefront-home";
-import { THEME_IDS, type ThemeId } from "../../lib/constants";
-import { THEMES } from "../../lib/themes";
-import { STORE_SKINS, accountVars, skinFor, storeRootProps } from "../../components/storefront/commerce/skins";
-import { THEME_COMPONENTS, resolveThemeComponent } from "../../themes/registry";
+import type { StorefrontProduct, StorefrontView } from "../../backend/lib/storefront";
+import { buildCommerceData } from "../../backend/lib/storefront-home";
+import { THEME_IDS, type ThemeId } from "../../backend/lib/constants";
+import { THEMES } from "../../backend/lib/themes";
+import { STORE_SKINS, accountVars, skinFor, storeRootProps } from "../../frontend/components/storefront/commerce/skins";
+import { THEME_COMPONENTS, resolveThemeComponent } from "../../frontend/themes/registry";
 
 /**
  * The nine-theme collection (docs/storefront-commerce.md, "Theme collection"):
@@ -86,7 +86,7 @@ const CONFIG = {
 };
 
 async function render(themeId: ThemeId, products = ITEMS, over: Partial<StorefrontView> = {}, props: { editable?: boolean; preview?: boolean } = {}) {
-  const { default: ThemeRenderer } = await import("../../components/storefront/ThemeRenderer");
+  const { default: ThemeRenderer } = await import("../../frontend/components/storefront/ThemeRenderer");
   const v = view(themeId, products, over);
   const commerce = buildCommerceData(v, CONFIG, { now: NOW, pageSlugs: [], accountsEnabled: false });
   return renderToString(React.createElement(ThemeRenderer, { view: v, productHrefBase: "/product", commerce, ...props }));
@@ -228,7 +228,7 @@ test("Launch's marquee shows real category names once to assistive tech; the Har
 });
 
 test("theme thumbnails render for every theme from its own skin", async () => {
-  const { default: ThemeThumbnail } = await import("../../components/dashboard/ThemeThumbnail");
+  const { default: ThemeThumbnail } = await import("../../frontend/components/dashboard/ThemeThumbnail");
   for (const id of THEME_IDS) {
     const html = renderToString(React.createElement(ThemeThumbnail, { themeId: id }));
     assert.ok(html.includes(`data-thumb="${id}"`) && html.includes('aria-hidden="true"'), `${id}: decorative thumbnail`);
@@ -236,7 +236,7 @@ test("theme thumbnails render for every theme from its own skin", async () => {
 });
 
 test("a store without chosen colours uses its theme's palette and follows it; chosen colours always win", async () => {
-  const { DEFAULT_THEME_SETTINGS, themeBrandColors } = await import("../../lib/storefront");
+  const { DEFAULT_THEME_SETTINGS, themeBrandColors } = await import("../../backend/lib/storefront");
   for (const id of THEME_IDS) {
     const meta = THEMES.find((t) => t.id === id)!;
     assert.deepEqual(themeBrandColors(id, DEFAULT_THEME_SETTINGS), { primaryColor: meta.palette[1], accentColor: meta.palette[2], usesThemeColors: true }, id);
@@ -245,7 +245,7 @@ test("a store without chosen colours uses its theme's palette and follows it; ch
 });
 
 test("automatic rails that only repeat products already shown stay off the page; the rest stay", async () => {
-  const { repeatedRailIds } = await import("../../lib/storefront-home");
+  const { repeatedRailIds } = await import("../../backend/lib/storefront-home");
   const data = buildCommerceData(view("market", ITEMS), { sections: [{ id: "featured", type: "featured", title: "Featured" }, { id: "new", type: "newArrivals", title: "New" }, { id: "sale", type: "sale", title: "Sale" }] }, { now: NOW, pageSlugs: [], accountsEnabled: false });
   const repeated = repeatedRailIds(data.sections);
   assert.ok(repeated.has("new"), "new arrivals repeat the featured products");
@@ -265,7 +265,7 @@ test("every theme has its own typeface, and a hero without any image still has a
 test("every theme has a finished sample store: photos on disk, a preview picture, and no invented sales or ratings", async () => {
   const fs = await import("node:fs");
   const path = await import("node:path");
-  const { sampleCommerceData, sampleStoreView } = await import("../../components/marketing/sample-store");
+  const { sampleCommerceData, sampleStoreView } = await import("../../frontend/components/marketing/sample-store");
   const onDisk = (url: string) => fs.existsSync(path.join(process.cwd(), "public", url));
   for (const id of THEME_IDS) {
     const view = sampleStoreView(id);
@@ -284,7 +284,7 @@ test("every theme has a finished sample store: photos on disk, a preview picture
 });
 
 test("owner configs still refuse sample photos: only media-library images are accepted", async () => {
-  const { readStorefrontConfig } = await import("../../lib/storefront-config");
+  const { readStorefrontConfig } = await import("../../backend/lib/storefront-config");
   const config = readStorefrontConfig({ hero: { imageUrl: "/samples/hero-aurora.webp" } }, "retail");
   assert.equal(config.hero.imageUrl, "", "a local sample path never reaches an owner's hero");
 });

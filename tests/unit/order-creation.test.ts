@@ -4,8 +4,8 @@ import "../helpers/env";
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { Order } from "../../models/Order";
-import { Product } from "../../models/Product";
+import { Order } from "../../backend/models/Order";
+import { Product } from "../../backend/models/Product";
 
 const BUSINESS_ID = "507f1f77bcf86cd799439011";
 

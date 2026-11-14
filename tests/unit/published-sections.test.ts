@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { resolvePublishedPageSections } from "../../lib/sections";
+import { resolvePublishedPageSections } from "../../backend/lib/sections";
 
 /** Draft/published separation for public page rendering (Phase 5). */
 

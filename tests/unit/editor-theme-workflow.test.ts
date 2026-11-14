@@ -3,8 +3,8 @@ import test from "node:test";
 import {
   EditorSaveError,
   savePageBackedEditorChanges,
-} from "../../lib/editor-save";
-import { resolveEditorNavigation } from "../../lib/editor-preview";
+} from "../../backend/lib/editor-save";
+import { resolveEditorNavigation } from "../../backend/lib/editor-preview";
 
 test("page-backed save persists sections before only the changed business theme settings", async () => {
   const calls: Array<{ url: string; body: Record<string, unknown> }> = [];

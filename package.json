@@ -13,9 +13,9 @@
     "test:integration": "node --import ./tests/integration/helpers/mock-next-headers-setup.ts --import tsx --test \"tests/integration/**/*.test.ts\"",
     "test:all": "npm run test:unit && npm run test:integration",
     "test:staging-ai": "node --import ./tests/integration/helpers/mock-next-headers-setup.ts --import tsx --test tests/staging/gemini-staging.test.ts",
-    "seed": "tsx scripts/seed.ts",
-    "create-admin": "tsx scripts/create-admin.ts",
-    "domain-migration": "tsx scripts/domain-migration.ts"
+    "seed": "tsx backend/scripts/seed.ts",
+    "create-admin": "tsx backend/scripts/create-admin.ts",
+    "domain-migration": "tsx backend/scripts/domain-migration.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",

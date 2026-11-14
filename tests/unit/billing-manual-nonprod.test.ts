@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { isManualBillingAllowed, NO_PLAN_ENTITLEMENTS } from "../../lib/billing";
+import { isManualBillingAllowed, NO_PLAN_ENTITLEMENTS } from "../../backend/lib/billing";
 
 // Outside production manual billing is always permitted, regardless of the
 // ALLOW_MANUAL_BILLING flag. Self-contained config (safe dummies only).

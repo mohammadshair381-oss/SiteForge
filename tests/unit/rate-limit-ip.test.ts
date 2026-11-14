@@ -3,8 +3,8 @@ import "../helpers/env";
 import assert from "node:assert/strict";
 import test, { after, before, beforeEach } from "node:test";
 
-import { HttpError } from "../../lib/api";
-import { getClientIp } from "../../lib/rate-limit";
+import { HttpError } from "../../backend/lib/api";
+import { getClientIp } from "../../backend/lib/rate-limit";
 
 // lib/env.ts caches its parsed configuration on the first env() call, and
 // getClientIp() reads env().TRUSTED_IP_HEADER. This file must therefore set the

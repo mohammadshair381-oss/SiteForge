@@ -13,9 +13,9 @@ import {
   readCustomerSessionCookie,
   signCustomerSession,
   verifyCustomerSession,
-} from "../../lib/auth/customer-session";
-import { SESSION_COOKIE } from "../../lib/auth/session";
-import { signSession, verifySession } from "../../lib/auth/tokens";
+} from "../../backend/lib/auth/customer-session";
+import { SESSION_COOKIE } from "../../backend/lib/auth/session";
+import { signSession, verifySession } from "../../backend/lib/auth/tokens";
 
 /** Token-level separation between customer and platform sessions (pure). */
 

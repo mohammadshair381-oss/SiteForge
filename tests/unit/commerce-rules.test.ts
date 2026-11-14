@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { computeTotals, discountFor, readShippingSettings, shippingAddressSchema, shippingFor } from "../../lib/checkout-pricing";
-import { availabilityOf, lowStockLevel, LOW_STOCK_DEFAULT } from "../../lib/inventory-rules";
-import { effectiveCompareAt, effectivePrice, normalizeVariants, priceRange, productOptionsSchema, variantLabel } from "../../lib/product-variants";
-import { jsonLdScript, absolutize } from "../../lib/structured-data";
-import { resolveInternalHref } from "../../lib/storefront-config";
+import { computeTotals, discountFor, readShippingSettings, shippingAddressSchema, shippingFor } from "../../backend/lib/checkout-pricing";
+import { availabilityOf, lowStockLevel, LOW_STOCK_DEFAULT } from "../../backend/lib/inventory-rules";
+import { effectiveCompareAt, effectivePrice, normalizeVariants, priceRange, productOptionsSchema, variantLabel } from "../../backend/lib/product-variants";
+import { jsonLdScript, absolutize } from "../../backend/lib/structured-data";
+import { resolveInternalHref } from "../../backend/lib/storefront-config";
 
 test("totals: discount on the subtotal, shipping after the discount, rounded to cents", () => {
   const shipping = readShippingSettings({ enabled: true, flatRate: 4.99, freeOver: 50 });

@@ -7,11 +7,11 @@ import {
   MEMBERSHIP_ROLES,
   PLATFORM_ROLES,
   PRODUCT_OPERATION_ROLES,
-} from "../../lib/constants";
+} from "../../backend/lib/constants";
 import {
   membershipInviteSchema,
   membershipRoleUpdateSchema,
-} from "../../lib/validation";
+} from "../../backend/lib/validation";
 
 test("membership roles: owner and staff remain supported", () => {
   assert.deepEqual([...MEMBERSHIP_ROLES], ["owner", "staff", "manager"]);

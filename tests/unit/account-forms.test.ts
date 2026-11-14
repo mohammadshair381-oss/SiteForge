@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 // TSX in this test runner compiles to classic React.createElement calls.
 (globalThis as unknown as { React?: typeof React }).React = React;
 
-type Forms = typeof import("../../components/storefront/account/AccountForms");
+type Forms = typeof import("../../frontend/components/storefront/account/AccountForms");
 let ChangePasswordForm: Forms["ChangePasswordForm"];
 let ForgotPasswordForm: Forms["ForgotPasswordForm"];
 let LoginForm: Forms["LoginForm"];
@@ -17,7 +17,7 @@ let VerifyEmailForm: Forms["VerifyEmailForm"];
 
 before(async () => {
   ({ ChangePasswordForm, ForgotPasswordForm, LoginForm, RegisterForm, ResetPasswordForm, SuccessBox, VerifyEmailForm } = await import(
-    "../../components/storefront/account/AccountForms"
+    "../../frontend/components/storefront/account/AccountForms"
   ));
 });
 

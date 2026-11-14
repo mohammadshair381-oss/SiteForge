@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { isManualBillingAllowed } from "../../lib/billing";
+import { isManualBillingAllowed } from "../../backend/lib/billing";
 
 // In production with ALLOW_MANUAL_BILLING explicitly "false", manual billing
 // stays disabled. Self-contained config (safe dummies only).

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { env, isProduction } from "../../lib/env";
+import { env, isProduction } from "../../backend/lib/env";
 
 // Self-contained valid configuration. Values are set on the module body so they
 // are in place before env()'s first (caching) call, regardless of test order.

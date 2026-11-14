@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildMongooseOptions, MONGODB_MAX_IDLE_TIME_MS, srvLookupName, usesOnlyLoopbackDns } from "../../lib/db";
-import { DEFAULT_MONGODB_MAX_POOL_SIZE, envSchema } from "../../lib/env";
+import { buildMongooseOptions, MONGODB_MAX_IDLE_TIME_MS, srvLookupName, usesOnlyLoopbackDns } from "../../backend/lib/db";
+import { DEFAULT_MONGODB_MAX_POOL_SIZE, envSchema } from "../../backend/lib/env";
 
 // Pure: parses plain objects with the real env schema; never reads or mutates
 // process.env and never connects to MongoDB. Values are safe dummies.

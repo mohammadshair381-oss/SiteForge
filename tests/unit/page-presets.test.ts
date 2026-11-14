@@ -3,9 +3,9 @@ import "../helpers/env";
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { findPlaceholders, pageFamilyFor, planDefaultPages, type PagePlanInput } from "../../lib/page-presets";
-import { sectionsArraySchema } from "../../lib/sections";
-import { pageCreateSchema } from "../../lib/validation";
+import { findPlaceholders, pageFamilyFor, planDefaultPages, type PagePlanInput } from "../../backend/lib/page-presets";
+import { sectionsArraySchema } from "../../backend/lib/sections";
+import { pageCreateSchema } from "../../backend/lib/validation";
 
 function input(over: Partial<Omit<PagePlanInput, "business">> & { business?: Partial<PagePlanInput["business"]> } = {}): PagePlanInput {
   const { business, ...rest } = over;

@@ -9,8 +9,8 @@ process.env.APP_URL = "https://app.example.com";
 import {
   buildPasswordResetUrl,
   PASSWORD_RESET_TTL_MS,
-} from "../../lib/auth/password-reset";
-import { forgotPasswordSchema, resetPasswordSchema } from "../../lib/validation";
+} from "../../backend/lib/auth/password-reset";
+import { forgotPasswordSchema, resetPasswordSchema } from "../../backend/lib/validation";
 
 test("PASSWORD_RESET_TTL_MS is one hour", () => {
   assert.equal(PASSWORD_RESET_TTL_MS, 60 * 60 * 1000);

@@ -19,8 +19,8 @@
  */
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
-  const { assertStartupEnv } = await import("./lib/env");
+  const { assertStartupEnv } = await import("./backend/lib/env");
   assertStartupEnv();
-  const { assertEmailStartupConfig } = await import("./lib/email");
+  const { assertEmailStartupConfig } = await import("./backend/lib/email");
   assertEmailStartupConfig();
 }

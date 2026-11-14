@@ -1,16 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { HttpError } from "../../lib/api";
-import { CUSTOMER_RATE_LIMITS, customerAuthErrorCategory } from "../../lib/auth/customer-accounts";
-import { safeStorefrontPath } from "../../lib/auth/customer-redirect";
-import { EmailConfigurationError, EmailSendError } from "../../lib/email";
-import { isCustomerAccountsEnabled } from "../../lib/env";
+import { HttpError } from "../../backend/lib/api";
+import { CUSTOMER_RATE_LIMITS, customerAuthErrorCategory } from "../../backend/lib/auth/customer-accounts";
+import { safeStorefrontPath } from "../../backend/lib/auth/customer-redirect";
+import { EmailConfigurationError, EmailSendError } from "../../backend/lib/email";
+import { isCustomerAccountsEnabled } from "../../backend/lib/env";
 import {
   renderCustomerAccountExistsEmail,
   renderCustomerPasswordResetEmail,
   renderCustomerVerificationEmail,
-} from "../../lib/email-templates";
+} from "../../backend/lib/email-templates";
 import {
   customerEmailOnlySchema,
   customerLoginSchema,
@@ -19,7 +19,7 @@ import {
   customerVerifyEmailSchema,
   normalizeAccountEmail,
   pageSlugSchema,
-} from "../../lib/validation";
+} from "../../backend/lib/validation";
 
 const PASSWORD = "correct horse battery";
 

@@ -4,12 +4,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { z } from "zod";
 
-import { HttpError, handle } from "../../lib/api";
-import { canonicalEmail, couponIdentityKeys } from "../../lib/coupons";
-import { designDraftChangesSchema } from "../../lib/design-settings";
-import { rolesInviterMayGrant } from "../../lib/team-invitations";
-import { formatValidationError } from "../../lib/validation-messages";
-import { loginSchema, productUpdateSchema, registerSchema } from "../../lib/validation";
+import { HttpError, handle } from "../../backend/lib/api";
+import { canonicalEmail, couponIdentityKeys } from "../../backend/lib/coupons";
+import { designDraftChangesSchema } from "../../backend/lib/design-settings";
+import { rolesInviterMayGrant } from "../../backend/lib/team-invitations";
+import { formatValidationError } from "../../backend/lib/validation-messages";
+import { loginSchema, productUpdateSchema, registerSchema } from "../../backend/lib/validation";
 
 async function failure(fn: () => unknown) {
   const res = await handle(async () => {

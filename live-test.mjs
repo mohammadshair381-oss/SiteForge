@@ -1,4 +1,4 @@
-import { getWebsitePlanningProvider, requestValidatedWebsitePlan } from "./lib/ai-planning/provider";
+import { getWebsitePlanningProvider, requestValidatedWebsitePlan } from "./backend/lib/ai-planning/provider";
 
 async function main() {
   const provider = getWebsitePlanningProvider();

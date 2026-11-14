@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import test, { mock } from "node:test";
 
-import { HttpError } from "../../lib/api";
+import { HttpError } from "../../backend/lib/api";
 import {
   buildS3ClientConfig,
   getS3PublicBaseUrl,
   parseS3Endpoint,
   resolveS3Bucket,
-} from "../../lib/s3";
+} from "../../backend/lib/s3";
 
 /**
  * Storage configuration (Phase 5): S3_* names with legacy AWS_* fallback,

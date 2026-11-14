@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { discountFor, eligibleSubtotal, matchShippingZone, priceOrder, quoteShipping, readShippingSettings, readTaxSettings, taxFor } from "../../lib/checkout-pricing";
-import { csvCell } from "../../lib/orders/management-query";
-import { renderOrderEmail } from "../../lib/email-templates";
+import { discountFor, eligibleSubtotal, matchShippingZone, priceOrder, quoteShipping, readShippingSettings, readTaxSettings, taxFor } from "../../backend/lib/checkout-pricing";
+import { csvCell } from "../../backend/lib/orders/management-query";
+import { renderOrderEmail } from "../../backend/lib/email-templates";
 
 const zones = [
   { id: "a", name: "Bengaluru", countries: ["India"], regions: [], postalPrefixes: ["560"], rate: 40, freeOver: 500, deliveryInfo: "Next day", codAvailable: true },

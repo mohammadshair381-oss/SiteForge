@@ -6,8 +6,8 @@ const scale = (name: string, stops: number[]) =>
 const config: Config = {
   content: [
     "./app/**/*.{ts,tsx}",
-    "./components/**/*.{ts,tsx}",
-    "./themes/**/*.{ts,tsx}",
+    "./frontend/components/**/*.{ts,tsx}",
+    "./frontend/themes/**/*.{ts,tsx}",
   ],
   theme: {
     extend: {

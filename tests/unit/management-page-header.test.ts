@@ -16,7 +16,7 @@ type HeaderProps = {
 let ManagementPageHeader: (props: HeaderProps) => React.ReactElement;
 
 before(async () => {
-  const module = await import("../../components/dashboard/ManagementPageHeader");
+  const module = await import("../../frontend/components/dashboard/ManagementPageHeader");
   ManagementPageHeader = module.default;
 });
 

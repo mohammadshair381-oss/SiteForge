@@ -3,7 +3,7 @@ import "../helpers/env";
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { hashPassword, verifyPassword } from "../../lib/auth/password";
+import { hashPassword, verifyPassword } from "../../backend/lib/auth/password";
 
 test("hashPassword produces a bcrypt hash, not the plaintext", async () => {
   const hash = await hashPassword("correct horse battery");

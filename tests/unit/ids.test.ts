@@ -3,8 +3,8 @@ import "../helpers/env";
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { HttpError } from "../../lib/api";
-import { assertObjectId, isValidObjectId } from "../../lib/ids";
+import { HttpError } from "../../backend/lib/api";
+import { assertObjectId, isValidObjectId } from "../../backend/lib/ids";
 
 test("isValidObjectId accepts 24-char hex strings only", () => {
   assert.equal(isValidObjectId("507f1f77bcf86cd799439011"), true);

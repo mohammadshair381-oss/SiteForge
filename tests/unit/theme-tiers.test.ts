@@ -3,7 +3,7 @@ import "../helpers/env";
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { THEME_IDS } from "../../lib/constants";
+import { THEME_IDS } from "../../backend/lib/constants";
 import {
   FREE_THEMES,
   MAX_THEMES,
@@ -15,7 +15,7 @@ import {
   planThemes,
   themePreferenceFor,
   type ThemeTierPlan,
-} from "../../lib/theme-tiers";
+} from "../../backend/lib/theme-tiers";
 
 test("default tiers: Free 3, Starter 6, Max all 9", () => {
   assert.deepEqual([...FREE_THEMES], ["bistro", "market", "studio"]);

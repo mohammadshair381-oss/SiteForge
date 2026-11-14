@@ -9,19 +9,19 @@ import {
   domainVerificationTokenMatches,
   generateDomainVerificationToken,
   hashDomainVerificationToken,
-} from "../../models/DomainVerification";
+} from "../../backend/models/DomainVerification";
 import {
   isInternalDomain,
   isReservedPlatformDomain,
   isSingleLabelDomain,
   validateDomain,
-} from "../../lib/domain";
+} from "../../backend/lib/domain";
 import {
   checkDomainTxtRecord,
   domainTxtRecordName,
   domainTxtRecordValue,
   setTxtResolverForTesting,
-} from "../../lib/domain-dns";
+} from "../../backend/lib/domain-dns";
 
 /**
  * Phase 4.26.1 — custom-domain lifecycle.

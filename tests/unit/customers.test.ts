@@ -5,8 +5,8 @@ import {
   escapeRegex,
   isGroupableCustomerEmail,
   normalizeCustomerEmail,
-} from "../../lib/customers";
-import { formatCustomerTotals } from "../../components/dashboard/CustomersManager";
+} from "../../backend/lib/customers";
+import { formatCustomerTotals } from "../../frontend/components/dashboard/CustomersManager";
 
 /** Customer identity rules (pure). */
 

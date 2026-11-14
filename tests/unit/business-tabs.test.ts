@@ -9,7 +9,7 @@ import {
   businessSectionLabel,
   visibleBusinessTabs,
   type BusinessMembershipRole,
-} from "../../components/dashboard/BusinessTabs";
+} from "../../frontend/components/dashboard/BusinessTabs";
 
 test("business tabs: owner sees every workspace section", () => {
   const labels = visibleBusinessTabs("owner").map((tab) => tab.label);

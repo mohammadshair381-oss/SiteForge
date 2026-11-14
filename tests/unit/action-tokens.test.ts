@@ -9,7 +9,7 @@ import {
   generateActionToken,
   hashActionToken,
   isActionTokenType,
-} from "../../lib/auth/action-tokens";
+} from "../../backend/lib/auth/action-tokens";
 
 // Pure behaviour only: these cases must never reach the database, so no
 // connection is required. Database-backed semantics are covered by

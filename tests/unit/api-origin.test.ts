@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { isAllowedApiOrigin } from "../../lib/host";
+import { isAllowedApiOrigin } from "../../backend/lib/host";
 
 test("API writes: same address only, and server callers without an Origin", () => {
   assert.equal(isAllowedApiOrigin(null, "shop.example.com", true), true, "webhooks send no Origin");

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { env } from "../../lib/env";
+import { env } from "../../backend/lib/env";
 
 // Every case below configures an INVALID environment. env() only caches a
 // *successful* parse, so each call here throws and the cache stays empty. The

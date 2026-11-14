@@ -114,6 +114,12 @@ const nextConfig = {
   reactStrictMode: true,
   serverExternalPackages: ["mongoose"],
 
+  // `app/` holds the routes; the rest of the app now lives under `backend/`
+  // (services, models, scripts) and `frontend/` (UI). Point `next lint` at all three so its
+  // default dir list (which looked for `components/`, `lib/` at the root) keeps
+  // covering the moved code.
+  eslint: { dirs: ["app", "backend", "frontend"] },
+
   async headers() {
     return [
       {

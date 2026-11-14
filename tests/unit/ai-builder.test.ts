@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { presetConfig } from "../../lib/storefront-config";
+import { presetConfig } from "../../backend/lib/storefront-config";
 import {
   StorefrontChangeError,
   applyStorefrontChanges,
@@ -9,10 +9,10 @@ import {
   storefrontChangeSetSchema,
   type BrandState,
   type StorefrontChange,
-} from "../../lib/ai-builder/storefront-changes";
-import { findUnsupportedClaims } from "../../lib/ai-builder/claims";
-import { dataBlock, productCopySchema, productPrompt, storefrontPrompt, type StorefrontPromptInput } from "../../lib/ai-builder/prompts";
-import { usageId, usagePeriod } from "../../lib/ai-builder/usage";
+} from "../../backend/lib/ai-builder/storefront-changes";
+import { findUnsupportedClaims } from "../../backend/lib/ai-builder/claims";
+import { dataBlock, productCopySchema, productPrompt, storefrontPrompt, type StorefrontPromptInput } from "../../backend/lib/ai-builder/prompts";
+import { usageId, usagePeriod } from "../../backend/lib/ai-builder/usage";
 
 const brand: BrandState = { primaryColor: "#4f46e5", accentColor: "#0ea5e9", font: "sans" };
 const base = () => presetConfig("clothing");
@@ -121,7 +121,7 @@ test("usage periods are UTC calendar months keyed per business", () => {
 });
 
 test("sanitization: owner text loses emails, phone and card numbers, tokens and secrets; the final check refuses leftovers", async () => {
-  const { redactText, findSensitiveData, assertProviderPayloadSafe, safeProduct, safeBusiness } = await import("../../lib/ai-builder/sanitize");
+  const { redactText, findSensitiveData, assertProviderPayloadSafe, safeProduct, safeBusiness } = await import("../../backend/lib/ai-builder/sanitize");
   const dirty = [
     "Mail me at owner.private@example.com or call +1 (555) 012-3456.",
     "Card 4111 1111 1111 1111, account 123456789012.",

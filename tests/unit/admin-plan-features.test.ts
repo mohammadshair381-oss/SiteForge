@@ -3,8 +3,8 @@ import "../helpers/env";
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { toStorefrontView } from "../../lib/storefront";
-import type { BusinessDoc, ProductDoc } from "../../models";
+import { toStorefrontView } from "../../backend/lib/storefront";
+import type { BusinessDoc, ProductDoc } from "../../backend/models";
 
 // Tests for admin plan feature independence (customDomain vs removeBranding).
 // These verify the data structure and save-payload logic that AdminPanel uses,

@@ -21,7 +21,7 @@ import {
   registerSchema,
   subdomainSchema,
   themeSettingsSchema,
-} from "../../lib/validation";
+} from "../../backend/lib/validation";
 
 test("emailSchema trims, lowercases, and validates", () => {
   assert.equal(emailSchema.parse("  Foo@Bar.com "), "foo@bar.com");

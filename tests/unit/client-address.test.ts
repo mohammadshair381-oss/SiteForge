@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { parseIPv6, rateLimitSourceKey } from "../../lib/client-address";
+import { parseIPv6, rateLimitSourceKey } from "../../backend/lib/client-address";
 
 test("IPv4 addresses are one source each; a port is ignored", () => {
   assert.equal(rateLimitSourceKey("203.0.113.7"), "ipv4:203.0.113.7");

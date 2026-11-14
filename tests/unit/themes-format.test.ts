@@ -3,9 +3,9 @@ import "../helpers/env";
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { formatPrice } from "../../lib/format";
-import { getThemeMeta, isValidThemeId, THEMES } from "../../lib/themes";
-import { THEME_IDS, type ThemeId } from "../../lib/constants";
+import { formatPrice } from "../../backend/lib/format";
+import { getThemeMeta, isValidThemeId, THEMES } from "../../backend/lib/themes";
+import { THEME_IDS, type ThemeId } from "../../backend/lib/constants";
 
 test("there are nine themes with unique ids, in THEME_IDS order (the original five first)", () => {
   assert.equal(THEMES.length, 9);

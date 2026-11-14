@@ -7,8 +7,8 @@ import { renderToString } from "react-dom/server";
 
 (globalThis as unknown as { React?: typeof React }).React = React;
 
-import type { StorefrontView } from "../../lib/storefront";
-import type { Section } from "../../lib/sections";
+import type { StorefrontView } from "../../backend/lib/storefront";
+import type { Section } from "../../backend/lib/sections";
 
 function makeView(overrides: Partial<StorefrontView> = {}): StorefrontView {
   return {
@@ -63,7 +63,7 @@ function makeSection(overrides: Partial<Section> & { type: Section["type"] }): S
 }
 
 async function renderSections(view: StorefrontView, extra: Record<string, unknown> = {}): Promise<string> {
-  const mod = await import("../../components/storefront/SectionRenderer");
+  const mod = await import("../../frontend/components/storefront/SectionRenderer");
   const Component = mod.default;
   return renderToString(React.createElement(Component, { view, productHrefBase: "/product", ...extra }));
 }
@@ -363,7 +363,7 @@ test("SectionRenderer: unknown section type does not crash", async () => {
   assert.doesNotThrow(() => {
     html = renderToString(React.createElement(
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      require("../../components/storefront/SectionRenderer").default,
+      require("../../frontend/components/storefront/SectionRenderer").default,
       { view, productHrefBase: "/product" },
     ));
   });

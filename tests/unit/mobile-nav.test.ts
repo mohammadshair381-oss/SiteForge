@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import test from "node:test";
 
 const mobileNavSource = readFileSync(
-  resolve(process.cwd(), "components/dashboard/MobileNav.tsx"),
+  resolve(process.cwd(), "frontend/components/dashboard/MobileNav.tsx"),
   "utf8",
 );
 const dashboardLayoutSource = readFileSync(

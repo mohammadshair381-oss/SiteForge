@@ -9,8 +9,8 @@ import {
   SECTION_TYPES,
   isSafeSectionHref,
   editorElementStyleSchema,
-} from "../../lib/sections";
-import { themeSettingsSchema } from "../../lib/validation";
+} from "../../backend/lib/sections";
+import { themeSettingsSchema } from "../../backend/lib/validation";
 
 test("section schema accepts a valid hero section", () => {
   const result = sectionSchema.safeParse({

@@ -15,13 +15,13 @@ import {
   readCustomerDeviceCookie,
   signCustomerDevice,
   verifyCustomerDevice,
-} from "../../lib/auth/customer-device";
+} from "../../backend/lib/auth/customer-device";
 import {
   CUSTOMER_SESSION_COOKIE,
   readCustomerSessionCookie,
   signCustomerSession,
   verifyCustomerSession,
-} from "../../lib/auth/customer-session";
+} from "../../backend/lib/auth/customer-session";
 
 /** Known-device markers: bound to one account and its current password, never a session (pure). */
 

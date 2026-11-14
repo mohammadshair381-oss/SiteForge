@@ -14,9 +14,9 @@
  * Usage (staging; the key in the process environment):
  *   AI_PROVIDER_ENABLED=true GEMINI_API_KEY=... node --import tsx live-test.ts
  */
-import { isAiProviderEnabled } from "./lib/env";
-import { geminiGenerateJson } from "./lib/ai-planning/gemini-http";
-import { HttpError } from "./lib/api";
+import { isAiProviderEnabled } from "./backend/lib/env";
+import { geminiGenerateJson } from "./backend/lib/ai-planning/gemini-http";
+import { HttpError } from "./backend/lib/api";
 
 async function main() {
   if (!isAiProviderEnabled()) {

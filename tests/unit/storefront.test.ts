@@ -3,9 +3,9 @@ import "../helpers/env";
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { BusinessDoc, ThemeSettings } from "../../models/Business";
-import type { ProductDoc } from "../../models/Product";
-import { DEFAULT_THEME_SETTINGS, toStorefrontView } from "../../lib/storefront";
+import type { BusinessDoc, ThemeSettings } from "../../backend/models/Business";
+import type { ProductDoc } from "../../backend/models/Product";
+import { DEFAULT_THEME_SETTINGS, toStorefrontView } from "../../backend/lib/storefront";
 
 const BUSINESS_ID = "507f1f77bcf86cd799439011";
 const PRODUCT_ID = "507f1f77bcf86cd799439099";

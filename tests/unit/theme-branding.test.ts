@@ -9,7 +9,7 @@ import { renderToString } from "react-dom/server";
 // can resolve it in the unit test environment.
 (globalThis as unknown as { React?: typeof React }).React = React;
 
-import type { StorefrontView } from "../../lib/storefront";
+import type { StorefrontView } from "../../backend/lib/storefront";
 
 function makeView(removeBranding: boolean): StorefrontView {
   return {
@@ -41,7 +41,7 @@ function makeView(removeBranding: boolean): StorefrontView {
 async function renderTheme(componentId: string, removeBranding: boolean): Promise<string> {
   // Dynamic import runs after globalThis.React is set, so theme JSX compiles
   // to React.createElement calls that resolve React from globalThis.
-  const mod = await import(`../../themes/${componentId}Theme`);
+  const mod = await import(`../../frontend/themes/${componentId}Theme`);
   const Component = mod.default;
   const html = renderToString(
     React.createElement(Component, {

@@ -9,9 +9,9 @@ process.env.APP_URL = "https://app.example.com";
 import {
   buildVerificationUrl,
   EMAIL_VERIFICATION_TTL_MS,
-} from "../../lib/auth/email-verification";
-import { isEmailVerified } from "../../lib/auth/guards";
-import { verifyEmailSchema } from "../../lib/validation";
+} from "../../backend/lib/auth/email-verification";
+import { isEmailVerified } from "../../backend/lib/auth/guards";
+import { verifyEmailSchema } from "../../backend/lib/validation";
 
 test("EMAIL_VERIFICATION_TTL_MS is 24 hours", () => {
   assert.equal(EMAIL_VERIFICATION_TTL_MS, 24 * 60 * 60 * 1000);

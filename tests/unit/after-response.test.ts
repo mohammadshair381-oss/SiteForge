@@ -7,7 +7,7 @@ import {
   releaseAfterResponseTasks,
   runAfterResponse,
   type AfterResponseRuntime,
-} from "../../lib/after-response";
+} from "../../backend/lib/after-response";
 
 /**
  * Scheduling logic of lib/after-response.ts. The Next.js `after()` itself is

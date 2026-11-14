@@ -2,14 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { NextResponse } from "next/server";
 
-import { HttpError } from "../../lib/api";
-import { assertSameOriginJsonRequest } from "../../lib/auth/customer-accounts";
+import { HttpError } from "../../backend/lib/api";
+import { assertSameOriginJsonRequest } from "../../backend/lib/auth/customer-accounts";
 import {
   CUSTOMER_DEVICE_COOKIE,
   appendCustomerDeviceCookie,
   customerDeviceCookieName,
   readCustomerDeviceCookie,
-} from "../../lib/auth/customer-device";
+} from "../../backend/lib/auth/customer-device";
 import {
   CUSTOMER_SESSION_COOKIE,
   CUSTOMER_SESSION_COOKIE_PRODUCTION,
@@ -17,7 +17,7 @@ import {
   clearCustomerSessionCookie,
   customerSessionCookieName,
   readCustomerSessionCookie,
-} from "../../lib/auth/customer-session";
+} from "../../backend/lib/auth/customer-session";
 
 // Production cookie/origin rules. These helpers read NODE_ENV at call time.
 // Self-contained config (safe dummies only); node --test runs each file in its

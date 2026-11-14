@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { assertRuntimeConfig, assertStartupEnv } from "../../lib/env";
+import { assertRuntimeConfig, assertStartupEnv } from "../../backend/lib/env";
 
 // Safe dummy values only; no real secrets are used or printed anywhere below.
 process.env.MONGODB_URI = "mongodb://dummy-host:27017/dummy_db";

@@ -3,8 +3,8 @@ import "../helpers/env";
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { AI_CONSENT_DISCLOSURE } from "../../lib/ai-builder/consent";
-import { classifyAiRequest, pageTypeOf } from "../../lib/ai-builder/intent";
+import { AI_CONSENT_DISCLOSURE } from "../../backend/lib/ai-builder/consent";
+import { classifyAiRequest, pageTypeOf } from "../../backend/lib/ai-builder/intent";
 import {
   PageBuildError,
   aiNewPageSchema,
@@ -16,16 +16,16 @@ import {
   toSection,
   uniquePageSlug,
   type AiNewPage,
-} from "../../lib/ai-builder/page-builder";
-import { productPrompt, pagePrompt, productCopySchema, productRequestText, seoPrompt, themePrompt, type PagePromptInput } from "../../lib/ai-builder/prompts";
-import { assertNoKnownContact, findSensitiveData, knownContactOf, safePageSections, withoutKnownContact } from "../../lib/ai-builder/sanitize";
-import { seoFieldsFor, seoSuggestionSchema, seoTexts } from "../../lib/ai-builder/seo";
-import { fallbackRecommendations, recommendationsWithAccess, themeAdviceSchema, themeCatalog } from "../../lib/ai-builder/theme-advisor";
-import { editingActionsSchema } from "../../lib/ai-planning/actions";
-import { findUnsupportedClaims } from "../../lib/ai-builder/claims";
-import { sectionsArraySchema, type Section } from "../../lib/sections";
-import { FREE_THEMES, type ThemeAccess } from "../../lib/theme-tiers";
-import { THEME_IDS, type ThemeId } from "../../lib/constants";
+} from "../../backend/lib/ai-builder/page-builder";
+import { productPrompt, pagePrompt, productCopySchema, productRequestText, seoPrompt, themePrompt, type PagePromptInput } from "../../backend/lib/ai-builder/prompts";
+import { assertNoKnownContact, findSensitiveData, knownContactOf, safePageSections, withoutKnownContact } from "../../backend/lib/ai-builder/sanitize";
+import { seoFieldsFor, seoSuggestionSchema, seoTexts } from "../../backend/lib/ai-builder/seo";
+import { fallbackRecommendations, recommendationsWithAccess, themeAdviceSchema, themeCatalog } from "../../backend/lib/ai-builder/theme-advisor";
+import { editingActionsSchema } from "../../backend/lib/ai-planning/actions";
+import { findUnsupportedClaims } from "../../backend/lib/ai-builder/claims";
+import { sectionsArraySchema, type Section } from "../../backend/lib/sections";
+import { FREE_THEMES, type ThemeAccess } from "../../backend/lib/theme-tiers";
+import { THEME_IDS, type ThemeId } from "../../backend/lib/constants";
 
 // ---------------------------------------------------------------------------
 // Understanding the request

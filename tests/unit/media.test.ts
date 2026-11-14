@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { MEDIA_MAX_UPLOAD_BYTES } from "../../lib/media-client";
+import { MEDIA_MAX_UPLOAD_BYTES } from "../../backend/lib/media-client";
 
 import {
   ALLOWED_IMAGE_MIME_TYPES,
@@ -16,8 +16,8 @@ import {
   sanitizeOriginalFilename,
   toMediaDto,
   type AllowedImageMime,
-} from "../../lib/media";
-import { imageUrlSchema } from "../../lib/validation";
+} from "../../backend/lib/media";
+import { imageUrlSchema } from "../../backend/lib/validation";
 
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01]);
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d]);

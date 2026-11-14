@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { resolveEmailConfig, type EmailEnv } from "../../lib/email";
+import { resolveEmailConfig, type EmailEnv } from "../../backend/lib/email";
 
 // Pure tests: resolveEmailConfig() takes plain values and never reads
 // process.env, so these cases are order-independent. Safe dummies only.

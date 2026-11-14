@@ -9,7 +9,7 @@ import {
   SESSION_MAX_AGE_SECONDS,
   signSession,
   verifySession,
-} from "../../lib/auth/tokens";
+} from "../../backend/lib/auth/tokens";
 
 const key = () => new TextEncoder().encode(process.env.SESSION_SECRET);
 

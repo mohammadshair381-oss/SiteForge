@@ -7,11 +7,11 @@ import { renderToString } from "react-dom/server";
 
 (globalThis as unknown as { React?: typeof React }).React = React;
 
-import type { StorefrontProduct, StorefrontView } from "../../lib/storefront";
-import { buildCommerceData, type CommerceExtras } from "../../lib/storefront-home";
-import { chooseEditorMode, selectEditorPage } from "../../lib/editor-mode";
+import type { StorefrontProduct, StorefrontView } from "../../backend/lib/storefront";
+import { buildCommerceData, type CommerceExtras } from "../../backend/lib/storefront-home";
+import { chooseEditorMode, selectEditorPage } from "../../backend/lib/editor-mode";
 
-import { THEME_IDS } from "../../lib/constants";
+import { THEME_IDS } from "../../backend/lib/constants";
 
 const THEMES = THEME_IDS;
 
@@ -32,7 +32,7 @@ function view(themeId: StorefrontView["themeId"]): StorefrontView {
 }
 
 async function render(themeId: StorefrontView["themeId"], extras: CommerceExtras, props: Record<string, unknown> = {}) {
-  const { default: ThemeRenderer } = await import("../../components/storefront/ThemeRenderer");
+  const { default: ThemeRenderer } = await import("../../frontend/components/storefront/ThemeRenderer");
   const v = view(themeId);
   const commerce = buildCommerceData(v, undefined, extras);
   return renderToString(React.createElement(ThemeRenderer, { view: v, productHrefBase: "/product", commerce, ...props }));
@@ -89,7 +89,7 @@ test("the editor preview renders the SAME homepage as the store, plus selection 
 });
 
 test("device preview: phone and tablet keep their width, desktop is at least 1024px, zoomed to fit", async () => {
-  const { fitPreview, previewLayoutLabel, previewElement } = await import("../../components/dashboard/editor/PreviewFrame");
+  const { fitPreview, previewLayoutLabel, previewElement } = await import("../../frontend/components/dashboard/editor/PreviewFrame");
   assert.deepEqual(fitPreview("mobile", 700), { viewport: 375, scale: 1 });
   assert.deepEqual(fitPreview("mobile", 343), { viewport: 375, scale: 343 / 375 });
   assert.deepEqual(fitPreview("tablet", 1000), { viewport: 768, scale: 1 });

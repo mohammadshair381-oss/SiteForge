@@ -15,6 +15,12 @@
     "incremental": true,
     "plugins": [{ "name": "next" }],
     "paths": {
+      "@/models": ["./backend/models"],
+      "@/lib/*": ["./backend/lib/*"],
+      "@/models/*": ["./backend/models/*"],
+      "@/scripts/*": ["./backend/scripts/*"],
+      "@/components/*": ["./frontend/components/*"],
+      "@/themes/*": ["./frontend/themes/*"],
       "@/*": ["./*"]
     }
   },

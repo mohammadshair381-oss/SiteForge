@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { contrastRatio, parseHexColor, readableTextColor } from "../../lib/color-contrast";
+import { contrastRatio, parseHexColor, readableTextColor } from "../../backend/lib/color-contrast";
 
 test("parses #rgb and #rrggbb only", () => {
   assert.deepEqual(parseHexColor("#4F46E5"), [79, 70, 229]);

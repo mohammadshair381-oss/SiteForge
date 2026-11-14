@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { z } from "zod";
 
-import { created, fail, handle, HttpError, ok, readJson } from "../../lib/api";
+import { created, fail, handle, HttpError, ok, readJson } from "../../backend/lib/api";
 
 test("ok and created return JSON responses with the right status", async () => {
   const okRes = ok({ hello: "world" });
@@ -135,7 +135,7 @@ test("an empty JSON body is a 400 invalid_json response", async () => {
 });
 
 test("readJson refuses oversized bodies and bad JSON", async () => {
-  const { readJson, HttpError } = await import("../../lib/api");
+  const { readJson, HttpError } = await import("../../backend/lib/api");
   const post = (body: string, headers: Record<string, string> = {}) => new Request("http://localhost/x", { method: "POST", body, headers });
   assert.deepEqual(await readJson(post('{"a":1}')), { a: 1 });
   const big = "x".repeat(2 * 1024 * 1024 + 1);

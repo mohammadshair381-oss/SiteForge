@@ -8,7 +8,7 @@ import {
   validateDomain,
   isReservedPlatformDomain,
   isIpAddress,
-} from "../../lib/domain";
+} from "../../backend/lib/domain";
 
 test("normalizeDomain lowercases and trims", () => {
   assert.equal(normalizeDomain("  Example.COM  "), "example.com");

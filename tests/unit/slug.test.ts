@@ -8,7 +8,7 @@ import {
   isValidSubdomain,
   RESERVED_SUBDOMAINS,
   slugify,
-} from "../../lib/slug";
+} from "../../backend/lib/slug";
 
 test("slugify normalizes accents, case, and separators", () => {
   assert.equal(slugify("Café Déjà Vu!"), "cafe-deja-vu");

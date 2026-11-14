@@ -3,7 +3,7 @@ import test, { before } from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
-import type { MediaItem } from "../../lib/media-client";
+import type { MediaItem } from "../../backend/lib/media-client";
 
 // TSX in this test runner compiles to classic React.createElement calls.
 (globalThis as unknown as { React?: typeof React }).React = React;
@@ -26,7 +26,7 @@ let MediaPickerCard: CardComponent;
 let MediaPicker: PickerComponent;
 
 before(async () => {
-  const module = await import("../../components/dashboard/MediaPicker");
+  const module = await import("../../frontend/components/dashboard/MediaPicker");
   MediaPickerCard = module.MediaPickerCard;
   MediaPicker = module.default;
 });

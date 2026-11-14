@@ -9,7 +9,7 @@ import {
   isRootHost,
   normalizeHost,
   storeLinkRoot,
-} from "../../lib/host";
+} from "../../backend/lib/host";
 
 const originalRootDomains = process.env.ROOT_DOMAINS;
 const originalPublicRootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN;

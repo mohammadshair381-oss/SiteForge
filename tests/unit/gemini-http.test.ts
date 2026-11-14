@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test, { afterEach, mock } from "node:test";
 
-import { GEMINI_TIMEOUT_MS, geminiGenerateJson, parseProviderJson } from "../../lib/ai-planning/gemini-http";
-import { HttpError } from "../../lib/api";
+import { GEMINI_TIMEOUT_MS, geminiGenerateJson, parseProviderJson } from "../../backend/lib/ai-planning/gemini-http";
+import { HttpError } from "../../backend/lib/api";
 
 const realFetch = globalThis.fetch;
 afterEach(() => {
@@ -78,8 +78,8 @@ test("provider JSON is parsed from raw, fenced or embedded output; nothing else"
 });
 
 test("model and timeout come from the server environment; invalid values never reach the network", async () => {
-  const { geminiModel, aiProviderTimeoutMs, DEFAULT_GEMINI_MODEL } = await import("../../lib/env");
-  const { aiBuilderStatus } = await import("../../lib/ai-builder/provider");
+  const { geminiModel, aiProviderTimeoutMs, DEFAULT_GEMINI_MODEL } = await import("../../backend/lib/env");
+  const { aiBuilderStatus } = await import("../../backend/lib/ai-builder/provider");
   const saved = { model: process.env.GEMINI_MODEL, timeout: process.env.AI_PROVIDER_TIMEOUT_MS, enabled: process.env.AI_PROVIDER_ENABLED, key: process.env.GEMINI_API_KEY };
   try {
     delete process.env.GEMINI_MODEL;

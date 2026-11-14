@@ -17,7 +17,7 @@ import {
   planUploadFiles,
   validateUploadFile,
   type MediaItem,
-} from "../../lib/media-client";
+} from "../../backend/lib/media-client";
 
 test("media client: accepts exactly the four raster image types", () => {
   assert.deepEqual([...ACCEPTED_IMAGE_TYPES], [

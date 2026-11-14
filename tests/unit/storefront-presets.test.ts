@@ -3,7 +3,7 @@ import "../helpers/env";
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { StorefrontProduct, StorefrontView } from "../../lib/storefront";
+import type { StorefrontProduct, StorefrontView } from "../../backend/lib/storefront";
 import {
   createHomeSection,
   duplicateHomeSection,
@@ -11,9 +11,9 @@ import {
   readStorefrontConfig,
   storefrontConfigSchema,
   type HomeSection,
-} from "../../lib/storefront-config";
-import { storeVocabulary, PRESET_SECTIONS, presetForBusinessType } from "../../lib/storefront-presets";
-import { buildCommerceData } from "../../lib/storefront-home";
+} from "../../backend/lib/storefront-config";
+import { storeVocabulary, PRESET_SECTIONS, presetForBusinessType } from "../../backend/lib/storefront-presets";
+import { buildCommerceData } from "../../backend/lib/storefront-home";
 
 const NOW = new Date("2026-10-30T12:00:00Z");
 const daysAgo = (n: number) => new Date(NOW.getTime() - n * 86_400_000).toISOString();

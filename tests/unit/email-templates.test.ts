@@ -5,7 +5,7 @@ import {
   escapeHtml,
   renderEmailVerificationEmail,
   renderPasswordResetEmail,
-} from "../../lib/email-templates";
+} from "../../backend/lib/email-templates";
 
 const RESET_URL = "https://app.example.com/reset-password?token=abc123";
 const VERIFY_URL = "https://app.example.com/verify-email?token=xyz789";

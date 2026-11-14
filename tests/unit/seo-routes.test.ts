@@ -7,7 +7,7 @@ import {
   buildStorefrontSitemapEntries,
   canonicalRootDomain,
   storefrontOrigin,
-} from "../../lib/seo";
+} from "../../backend/lib/seo";
 import { isHostAwareMetadataPath, middleware } from "../../middleware";
 
 /** Pure SEO helpers and middleware routing for robots/sitemap (Phase 5). */

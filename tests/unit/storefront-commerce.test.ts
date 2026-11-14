@@ -7,7 +7,7 @@ import { renderToString } from "react-dom/server";
 
 (globalThis as unknown as { React?: typeof React }).React = React;
 
-import type { StorefrontProduct, StorefrontView } from "../../lib/storefront";
+import type { StorefrontProduct, StorefrontView } from "../../backend/lib/storefront";
 import {
   DEFAULT_STOREFRONT_CONFIG,
   orderedHomeSections,
@@ -15,10 +15,10 @@ import {
   resolveInternalHref,
   storefrontConfigSchema,
   HOME_SECTION_KEYS,
-} from "../../lib/storefront-config";
-import { buildCommerceData, discountPercent } from "../../lib/storefront-home";
-import { THEME_IDS } from "../../lib/constants";
-import { isValidCompareAtPrice, productCreateSchema } from "../../lib/validation";
+} from "../../backend/lib/storefront-config";
+import { buildCommerceData, discountPercent } from "../../backend/lib/storefront-home";
+import { THEME_IDS } from "../../backend/lib/constants";
+import { isValidCompareAtPrice, productCreateSchema } from "../../backend/lib/validation";
 
 const NOW = new Date("2026-10-30T12:00:00Z");
 const daysAgo = (n: number) => new Date(NOW.getTime() - n * 86_400_000).toISOString();
@@ -287,7 +287,7 @@ test("homepage data: policies link only with policy text and a free /policies pa
 const THEMES = THEME_IDS;
 
 async function renderStore(themeId: (typeof THEMES)[number], products: StorefrontProduct[], config?: unknown) {
-  const { default: ThemeRenderer } = await import("../../components/storefront/ThemeRenderer");
+  const { default: ThemeRenderer } = await import("../../frontend/components/storefront/ThemeRenderer");
   const v = view(products, {
     themeId,
     about: "We make tea.",
@@ -351,7 +351,7 @@ test("empty store renders a calm empty state without product sections", async ()
 });
 
 test("removeBranding hides only the platform credit, never the store name", async () => {
-  const { default: ThemeRenderer } = await import("../../components/storefront/ThemeRenderer");
+  const { default: ThemeRenderer } = await import("../../frontend/components/storefront/ThemeRenderer");
   const v = view([product("1")], { removeBranding: true });
   const html = renderToString(React.createElement(ThemeRenderer, { view: v, productHrefBase: "/product" }));
   assert.ok(html.includes("Demo Store"));

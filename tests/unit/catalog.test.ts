@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { catalogCategories, filterCatalog, parseCatalogQuery, type CatalogProduct } from "../../lib/catalog";
+import { catalogCategories, filterCatalog, parseCatalogQuery, type CatalogProduct } from "../../backend/lib/catalog";
 
 const product = (overrides: Partial<CatalogProduct>): CatalogProduct => ({
   id: overrides.slug ?? "p",

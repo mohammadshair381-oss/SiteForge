@@ -7,7 +7,7 @@ import {
   mediaPublicBaseUrls,
   normalizeMediaPublicBaseUrl,
   parseMediaStorageUrlFromBases,
-} from "../../lib/media";
+} from "../../backend/lib/media";
 
 /** Optional legacy media base URL for an AWS S3 -> R2 migration (pure). */
 
