@@ -4,7 +4,7 @@ import test, { after, before, beforeEach } from "node:test";
 import { startIntegrationSuite, stopIntegrationSuite, getTestMongoUri } from "./helpers/env";
 import { clearAllCollections, connectTestDB, disconnectTestDB } from "./helpers/db";
 import { clearRequestCookies } from "./helpers/mock-next-headers-setup";
-import { PASSWORD, call, freshIp, login, me, registerVerified, sessionCookie, store } from "./helpers/customer-accounts";
+import { PASSWORD, call, freshIp, login, me, registerVerified, sessionCookie, store, waitForSafeRateLimitWindow } from "./helpers/customer-accounts";
 import { POST as changePasswordPOST } from "@/app/api/storefront/account/password/change/route";
 import { GET as profileGET, PATCH as profilePATCH } from "@/app/api/storefront/account/profile/route";
 import { GET as orderGET } from "@/app/api/storefront/account/orders/[orderId]/route";
@@ -138,6 +138,9 @@ test("password change: guesses are limited per account, even from different addr
   const { host } = await store();
   const cookie = await signedIn(host);
   const statuses: number[] = [];
+  // 5 wrong guesses per account per fixed 60-minute window (CUSTOMER_RATE_LIMITS.passwordChange):
+  // keep the burst inside one window so the sixth is the one refused.
+  await waitForSafeRateLimitWindow();
   for (let i = 0; i < 6; i += 1) {
     const response = await call(changePasswordPOST, host, { currentPassword: "not-the-password", newPassword: "another good password" }, { cookie, ip: freshIp() });
     statuses.push(response.status);

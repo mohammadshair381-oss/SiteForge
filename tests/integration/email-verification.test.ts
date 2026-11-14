@@ -20,6 +20,7 @@ import { getMockCookieStore, resetMockCookieStore } from "./helpers/mock-next-he
 import { SESSION_COOKIE } from "@/lib/auth/session";
 import { PLATFORM_DEVICE_COOKIE } from "@/lib/auth/platform-device";
 import { signInWithCode } from "./helpers/platform-login";
+import { waitForSafeRateLimitWindow } from "./helpers/rate-limit-window";
 import { clearEmailOutbox, getEmailOutbox } from "@/lib/email";
 import { createActionToken } from "@/lib/auth/action-tokens";
 import { POST as registerPOST } from "@/app/api/auth/register/route";
@@ -279,6 +280,9 @@ test("resend is rate limited per user", async () => {
   const auth = await createAuthHeadersForUser(userId, "user", (await User.findById(userId).lean())?.tokenVersion);
 
   const statuses: number[] = [];
+  // Resends use a fixed 15-minute window (RESEND_WINDOW_MS, app/api/auth/email/resend/route.ts):
+  // keep the burst inside one so the fourth is the one refused.
+  await waitForSafeRateLimitWindow([15 * 60 * 1000]);
   for (let i = 0; i < 4; i += 1) {
     const res = await callHandler(resendPOST, makeAuthenticatedRequest(RESEND_URL, {}, auth));
     statuses.push(res.status);

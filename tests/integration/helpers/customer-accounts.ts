@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 
+import { waitForSafeRateLimitWindow as waitForSafeWindows } from "./rate-limit-window";
 import { createBusinessWithOwner, createPlan, createSubscription } from "./tenant";
 import { POST as registerPOST } from "@/app/api/storefront/account/register/route";
 import { POST as loginPOST } from "@/app/api/storefront/account/login/route";
@@ -113,15 +114,10 @@ export async function me(host: string, cookie?: string) {
   return ((await response.json()) as { customer: Record<string, unknown> | null }).customer;
 }
 
+/** The customer-account limits' windows (CUSTOMER_RATE_LIMITS in lib/auth/customer-accounts.ts). */
 const RATE_LIMIT_WINDOWS_MS = [15 * 60 * 1000, 60 * 60 * 1000];
-const WINDOW_SAFETY_MARGIN_MS = 45_000;
 
 /** Fixed-window limits: never start a burst right before a window boundary. */
 export async function waitForSafeRateLimitWindow(): Promise<void> {
-  for (;;) {
-    const now = Date.now();
-    const shortest = Math.min(...RATE_LIMIT_WINDOWS_MS.map((w) => w - (now % w)));
-    if (shortest >= WINDOW_SAFETY_MARGIN_MS) return;
-    await new Promise((resolve) => setTimeout(resolve, WINDOW_SAFETY_MARGIN_MS - shortest + 50));
-  }
+  await waitForSafeWindows(RATE_LIMIT_WINDOWS_MS);
 }

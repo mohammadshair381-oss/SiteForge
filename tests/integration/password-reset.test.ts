@@ -20,6 +20,7 @@ import { POST as resetPOST } from "@/app/api/auth/password/reset/route";
 import { POST as loginPOST } from "@/app/api/auth/login/route";
 import { GET as meHandler } from "@/app/api/auth/me/route";
 import { signInWithCode } from "./helpers/platform-login";
+import { waitForSafeRateLimitWindow } from "./helpers/rate-limit-window";
 import { User } from "@/models/User";
 import { AuthToken } from "@/models/AuthToken";
 
@@ -129,6 +130,9 @@ test("the forgot response never exposes the raw token and only a hash is stored"
 test("forgot-password is rate limited per email", async () => {
   const email = uniqueEmail("forgot-limit");
   const statuses: number[] = [];
+  // Requests use a fixed 15-minute window (FORGOT_WINDOW_MS, app/api/auth/password/forgot/route.ts):
+  // keep the burst inside one so the fourth is the one refused.
+  await waitForSafeRateLimitWindow([15 * 60 * 1000]);
   for (let i = 0; i < 4; i += 1) {
     const res = await callHandler(forgotPOST, makeRequest(FORGOT_URL, { email }));
     statuses.push(res.status);

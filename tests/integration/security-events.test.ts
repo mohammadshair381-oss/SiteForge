@@ -7,6 +7,7 @@ import { createUser } from "./helpers/fixtures";
 import { callHandler, createAuthHeadersForUser } from "./helpers/auth";
 import { clearRequestCookies } from "./helpers/mock-next-headers-setup";
 import { signInWithCode } from "./helpers/platform-login";
+import { waitForSafeRateLimitWindow } from "./helpers/rate-limit-window";
 import { GET as securityGET } from "@/app/api/admin/security-events/route";
 import { PATCH as userPATCH } from "@/app/api/admin/users/[id]/route";
 import { getSecuritySummary, listSecurityEvents, securityQuerySchema } from "@/lib/admin/security";
@@ -111,6 +112,9 @@ test("rate-limited attempts are not recorded, which bounds event volume", async 
   await createUser({ email: "target@example.com", password: "right-password-1" });
   const results = [];
   const source = freshIp();
+  // Sign-in limits use fixed 5-minute windows (LOGIN_WINDOW_MS, app/api/auth/login/route.ts):
+  // the burst must stay inside one, or the sixth attempt is counted in a new window.
+  await waitForSafeRateLimitWindow([5 * 60 * 1000]);
   for (let i = 0; i < 7; i++) results.push((await login("target@example.com", `guess-${i}`, source)).status);
   assert.deepEqual(results, [401, 401, 401, 401, 401, 429, 429]);
   assert.equal(await SecurityEvent.countDocuments({ type: "login_failed" }), 5);

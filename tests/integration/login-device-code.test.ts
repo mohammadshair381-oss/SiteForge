@@ -35,7 +35,13 @@ import { AdminAuditLog } from "@/models/AdminAuditLog";
 import { applyUserAdminAction, type UserAdminAction } from "@/lib/admin/user-actions";
 import { getSecuritySummary } from "@/lib/admin/security";
 import { consumeRateLimit } from "@/lib/rate-limit";
-import { LOGIN_CODE_FAILURE_WINDOW_MS, LOGIN_CODE_FAILURES_PER_ACCOUNT } from "@/lib/auth/login-code-limits";
+import {
+  LOGIN_CODE_FAILURE_WINDOW_MS,
+  LOGIN_CODE_FAILURES_PER_ACCOUNT,
+  LOGIN_CODE_SEND_WINDOW_MS,
+  LOGIN_CODE_WINDOW_MS,
+} from "@/lib/auth/login-code-limits";
+import { waitForSafeRateLimitWindow } from "./helpers/rate-limit-window";
 import { POST as logoutPOST } from "@/app/api/auth/logout/route";
 import { callHandler, createAuthHeadersForUser, makeAuthenticatedRequest } from "./helpers/auth";
 
@@ -518,6 +524,10 @@ test("codes are never logged unless development, the flag and a local email prov
 
 test("rate limits: codes per account, checks and resends per source", async () => {
   const user = await createUser({ email: "owner@example.com", password: PASSWORD });
+  // All three limits below use fixed 15-minute windows: keep the whole test inside one, so
+  // each limit is refused at exactly the attempt asserted. (Each sign-in uses a fresh source,
+  // so the 5-minute password limits play no part.)
+  await waitForSafeRateLimitWindow([LOGIN_CODE_SEND_WINDOW_MS, LOGIN_CODE_WINDOW_MS]);
 
   // Codes emailed per account (first codes and resends together): 5 per 15 minutes.
   const sends: number[] = [];
@@ -551,6 +561,11 @@ const spendAccountBudget = async (userId: unknown, units: number) => {
     await consumeRateLimit({ key: `login-code:fail:account:${String(userId)}`, limit: LOGIN_CODE_FAILURES_PER_ACCOUNT, windowMs: LOGIN_CODE_FAILURE_WINDOW_MS });
   }
 };
+/**
+ * The account's wrong-code budget is a fixed 24-hour window ending at midnight UTC. A test that
+ * spends it and then checks the result must not straddle midnight, or the budget starts again.
+ */
+const insideOneBudgetDay = () => waitForSafeRateLimitWindow([LOGIN_CODE_FAILURE_WINDOW_MS]);
 
 test("existing markers keep working while the device-trust generation is missing or zero", async () => {
   const user = await createUser({ email: "owner@example.com", password: PASSWORD });
@@ -699,6 +714,7 @@ test("a resent code still works with the guesses that remain", async () => {
 });
 
 test("the account's daily wrong-code budget holds across pending sign-ins, even under concurrency", async () => {
+  await insideOneBudgetDay();
   const user = await createUser({ email: "owner@example.com", password: PASSWORD });
   forceCodes(111111, 222222);
   const guesses = (challenge: string | null) =>
@@ -727,6 +743,7 @@ test("the account's daily wrong-code budget holds across pending sign-ins, even 
 });
 
 test("a used-up account budget refuses even a right code, without comparing it", async () => {
+  await insideOneBudgetDay();
   const user = await createUser({ email: "owner@example.com", password: PASSWORD });
   const first = await platformLogin(user.email, PASSWORD);
   const code = lastLoginCode(user.email);
@@ -739,6 +756,8 @@ test("a used-up account budget refuses even a right code, without comparing it",
 });
 
 test("a right code does not spend the account's budget", async () => {
+  // Across midnight this would pass without testing anything: the budget would simply be new.
+  await insideOneBudgetDay();
   const user = await createUser({ email: "owner@example.com", password: PASSWORD });
   await spendAccountBudget(user._id, LOGIN_CODE_FAILURES_PER_ACCOUNT - 1);
   // One unit left: three sign-ins in a row each borrow it and give it back.
@@ -750,6 +769,7 @@ test("a right code does not spend the account's budget", async () => {
 });
 
 test("the account lock never changes the password answers, so it reveals no account", async () => {
+  await insideOneBudgetDay();
   const user = await createUser({ email: "owner@example.com", password: PASSWORD });
   await spendAccountBudget(user._id, LOGIN_CODE_FAILURES_PER_ACCOUNT + 1);
   const unknown = await platformLogin("nobody@example.com", "a-wrong-password");
