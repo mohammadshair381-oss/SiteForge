@@ -415,6 +415,11 @@ announcement colour, footer columns and what to show. Layouts offered instead of
 `FOOTER_LAYOUTS`, which use only the skin's own tokens. Links' position applies to single-row headers (`glass`, `console`, `minimal`,
 `textual`). A footer column's internal link is checked with `resolveInternalHref` and left out if it leads nowhere.
 
+**Service area.** The owner may enter an optional service area (`Business.serviceArea`, up to 240 characters) in Business
+settings, for example the towns they deliver to or visit. It is public storefront information, like the contact email, phone
+and address: `toStorefrontView` returns it as `serviceArea`, and the footer's contact details show it as "Serving …" when the
+footer shows contact details (`footer.showContact`). Leave it empty and nothing is shown.
+
 **Design** (`backend/lib/design-settings.ts`). Heading and text weight, heading size, page background and text colour, button style, corners,
 section spacing, content width and link style join the fonts and colours. Each is a class on the store root (`designClasses`, styled
 in `app/globals.css`), and "theme" adds none. Read and copy the choices only through `pickStoreDesign`. `sf-container` marks each skin's

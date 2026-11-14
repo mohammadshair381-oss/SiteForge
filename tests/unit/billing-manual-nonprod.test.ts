@@ -30,5 +30,9 @@ test("NO_PLAN_ENTITLEMENTS exposes the baseline limits and flags", () => {
     aiRequestsPerMonth: 0,
     // No plan: only the Free themes can be selected (the current one is kept).
     themes: ["bistro", "market", "studio"],
+    // Optional plan limits: null means no limit (docs/platform-management.md, "Absent means").
+    pageLimit: null,
+    storageBytes: null,
+    monthlyOrderLimit: null,
   });
 });

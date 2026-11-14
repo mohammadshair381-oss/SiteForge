@@ -174,6 +174,7 @@ test("only the intended storefront fields are returned", () => {
     "phone",
     "products",
     "removeBranding",
+    "serviceArea",
     "subdomain",
     "theme",
     "themeId",

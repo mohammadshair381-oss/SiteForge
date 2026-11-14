@@ -15,6 +15,7 @@ test("business tabs: owner sees every workspace section", () => {
   const labels = visibleBusinessTabs("owner").map((tab) => tab.label);
   assert.deepEqual(labels, [
     "Overview",
+    "Notifications",
     "Store setup",
     "Website editor",
     "Pages",
@@ -31,6 +32,7 @@ test("business tabs: owner sees every workspace section", () => {
     "Insights",
     "Orders",
     "Customers",
+    "Abandoned carts",
     "Coupons",
     "Reviews",
     "Media",
@@ -48,6 +50,7 @@ test("business tabs: manager sees content sections but not billing", () => {
   const labels = visibleBusinessTabs("manager").map((tab) => tab.label);
   assert.deepEqual(labels, [
     "Overview",
+    "Notifications",
     "Store setup",
     "Website editor",
     "Pages",
@@ -64,6 +67,7 @@ test("business tabs: manager sees content sections but not billing", () => {
     "Insights",
     "Orders",
     "Customers",
+    "Abandoned carts",
     "Coupons",
     "Reviews",
     "Media",
@@ -74,7 +78,7 @@ test("business tabs: manager sees content sections but not billing", () => {
 
 test("business tabs: staff sees only operational sections", () => {
   const labels = visibleBusinessTabs("staff").map((tab) => tab.label);
-  assert.deepEqual(labels, ["Overview", "Pages", "Products", "Inventory", "Media"]);
+  assert.deepEqual(labels, ["Overview", "Notifications", "Pages", "Products", "Inventory", "Media"]);
 });
 
 test("business tabs: unknown roles cannot be passed and staff cannot reach settings", () => {
