@@ -31,6 +31,7 @@ import { MAX_OPEN_COD_ORDERS_PER_CUSTOMER, releaseExpiredOrders } from "@/lib/or
 import { clearEmailOutbox } from "@/lib/email";
 import { Business } from "@/models/Business";
 import { Customer } from "@/models/Customer";
+import { InventoryMovement } from "@/models/InventoryMovement";
 import { Order } from "@/models/Order";
 import { Product } from "@/models/Product";
 
@@ -411,16 +412,79 @@ test("a customer may hold a limited number of open COD orders; cancelling frees 
 });
 
 test("parallel COD checkouts by one customer cannot exceed the open-order limit", async () => {
+  // Every checkout below belongs to one signed-in customer, and account carts are on (the
+  // in-memory database has their index): each request's guest cart merges into that customer's
+  // single cart for the store, so the requests compete for it. How they interleave decides which
+  // succeed and how many units each order holds. So this checks what must hold in EVERY
+  // interleaving, not how many succeed or exactly how much stock is left.
   const { host, business, session } = await signedInStore({ cod: true });
+  const bystander = await store();
+  const bystanderItem = await product(bystander.business._id, 20);
   const item = await product(business._id, 20);
+  const attempts = MAX_OPEN_COD_ORDERS_PER_CUSTOMER + 2;
   const carts: string[] = [];
-  for (let i = 0; i < MAX_OPEN_COD_ORDERS_PER_CUSTOMER + 2; i += 1) carts.push(await cart(host, item._id));
+  for (let i = 0; i < attempts; i += 1) carts.push(await cart(host, item._id));
   const results = await Promise.all(carts.map((c) => checkout(host, `${c}; ${session}`, { paymentMethod: "cod" })));
-  const statuses = results.map((r) => r.status);
-  assert.equal(statuses.filter((s) => s === 200).length, MAX_OPEN_COD_ORDERS_PER_CUSTOMER, statuses.join(","));
-  assert.ok(statuses.every((s) => s === 200 || s === 409), statuses.join(","));
-  assert.equal(await Order.countDocuments({ business: business._id, paymentMethod: "cod", status: "pending" }), MAX_OPEN_COD_ORDERS_PER_CUSTOMER);
-  assert.equal(await stockOf(item._id), 20 - MAX_OPEN_COD_ORDERS_PER_CUSTOMER);
+  const bodies = await Promise.all(results.map((r) => json(r)));
+  const outcomes = results.map((r, i) => `${r.status}:${String(bodies[i].code ?? "ok")}`).join(",");
+
+  // Every answer is a success or one of the two expected refusals: the open-order limit, or
+  // another request having already used the shared cart. Anything else fails.
+  for (const [i, response] of results.entries()) {
+    if (response.status === 200) continue;
+    assert.equal(response.status, 409, outcomes);
+    assert.ok(["cod_limit_reached", "cart_conflict"].includes(String(bodies[i].code)), outcomes);
+  }
+  const succeeded = bodies.filter((_, i) => results[i].status === 200);
+  assert.ok(succeeded.length >= 1, `valid checkouts must not all be refused: ${outcomes}`);
+  assert.ok(succeeded.length <= MAX_OPEN_COD_ORDERS_PER_CUSTOMER, outcomes);
+
+  // Exactly the successful requests created orders, all within the open-order limit, all tied
+  // to this customer in this store.
+  const account = await Customer.findOne({ business: business._id, email: EMAIL }).lean();
+  assert.ok(account);
+  const orders = await Order.find({ business: business._id }).lean();
+  assert.deepEqual(orders.map((o) => String(o._id)).sort(), succeeded.map((b) => String(b.orderId)).sort(), outcomes);
+  assert.ok(
+    (await Order.countDocuments({ business: business._id, customer: account._id, paymentMethod: "cod", status: "pending" })) <= MAX_OPEN_COD_ORDERS_PER_CUSTOMER,
+    outcomes,
+  );
+  const unitsOf = (order: (typeof orders)[number]) => order.items.reduce((n, line) => n + line.quantity, 0);
+  for (const order of orders) {
+    assert.equal(order.paymentMethod, "cod");
+    assert.equal(order.status, "pending");
+    assert.equal(order.inventoryState, "reserved");
+    assert.equal(String(order.customer), String(account._id), "tied to the signed-in customer");
+    assert.equal(order.customerEmail, EMAIL);
+    assert.ok(order.items.every((line) => String(line.product) === String(item._id)), "only this store's product");
+    assert.ok(unitsOf(order) >= 1);
+  }
+
+  // Stock: exactly what was ordered is held. Merging carts never creates units, so no more than
+  // the carts held (one each) can be ordered, and stock never goes below zero.
+  const unitsOrdered = orders.reduce((n, order) => n + unitsOf(order), 0);
+  assert.ok(unitsOrdered <= attempts, `${unitsOrdered} units ordered from ${attempts} one-unit carts`);
+  const stock = await stockOf(item._id);
+  assert.equal(stock, 20 - unitsOrdered, "stock fell by exactly the units ordered");
+  assert.ok((stock ?? -1) >= 0);
+
+  // The inventory history matches, order by order, and records nothing else.
+  const movements = await InventoryMovement.find({ business: business._id }).lean();
+  assert.equal(movements.reduce((n, m) => n + m.delta, 0), -unitsOrdered, "movements match the stock change");
+  for (const m of movements) {
+    assert.equal(m.reason, "order_reserved");
+    assert.equal(String(m.product), String(item._id));
+    assert.ok(orders.some((order) => String(order._id) === String(m.order)), "every movement belongs to a created order");
+  }
+  for (const order of orders) {
+    const delta = movements.filter((m) => String(m.order) === String(order._id)).reduce((n, m) => n + m.delta, 0);
+    assert.equal(delta, -unitsOf(order), "each order reserved exactly its own units");
+  }
+
+  // Another store is untouched.
+  assert.equal(await stockOf(bystanderItem._id), 20);
+  assert.equal(await Order.countDocuments({ business: bystander.business._id }), 0);
+  assert.equal(await InventoryMovement.countDocuments({ business: bystander.business._id }), 0);
 });
 
 // ---------------------------------------------------------------------------
