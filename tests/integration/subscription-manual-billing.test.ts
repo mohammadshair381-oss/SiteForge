@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test, { after, before, beforeEach } from "node:test";
+import mongoose from "mongoose";
 
 import { startIntegrationSuite, stopIntegrationSuite, getTestMongoUri } from "./helpers/env";
 import { clearAllCollections, connectTestDB, disconnectTestDB } from "./helpers/db";
@@ -21,18 +22,37 @@ import { Subscription } from "@/models/Subscription";
 // test FILE runs in its own Node process: the overrides below are applied after
 // the harness sets its defaults but BEFORE connectTestDB() triggers the first
 // env() call, so the cached configuration is the production one we assert here.
+//
+// In production, dbConnect() refuses a database whose core unique indexes are missing
+// (lib/db.ts, DatabaseNotPreparedError), and nothing builds them automatically. So the
+// in-memory database is prepared first, as the approved operation prepares a real one
+// (docs/database-preparation.md), on a separate connection that never calls env().
+async function prepareDatabase(uri: string): Promise<void> {
+  const connection = await mongoose.createConnection(uri).asPromise();
+  try {
+    // Every model the app and the test helpers registered, as connectTestDB() would build.
+    for (const model of Object.values(mongoose.models)) {
+      await connection.model(model.modelName, model.schema).createIndexes();
+    }
+  } finally {
+    await connection.close();
+  }
+}
+
 before(async () => {
   await startIntegrationSuite();
+  const uri = getTestMongoUri();
+  if (!uri.startsWith("mongodb://127.0.0.1:") && !uri.startsWith("mongodb://localhost:")) {
+    throw new Error(`Test harness using unexpected MongoDB URI: ${uri}`);
+  }
+  await prepareDatabase(uri);
+
   // Next.js declares process.env.NODE_ENV read-only; the harness uses the same
   // cast when it pins NODE_ENV for the suite.
   (process.env as Record<string, string | undefined>).NODE_ENV = "production";
   process.env.ALLOW_MANUAL_BILLING = "false";
   process.env.PAYMENT_PROVIDER = "manual";
 
-  const uri = getTestMongoUri();
-  if (!uri.startsWith("mongodb://127.0.0.1:") && !uri.startsWith("mongodb://localhost:")) {
-    throw new Error(`Test harness using unexpected MongoDB URI: ${uri}`);
-  }
   await connectTestDB();
 });
 

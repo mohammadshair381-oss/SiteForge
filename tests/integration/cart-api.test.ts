@@ -176,7 +176,8 @@ test("GET returns an empty cart and a token without storing anything; the first 
   assert.strictEqual(response.status, 200);
 
   const body = await jsonBody(response);
-  assert.deepStrictEqual(body, { items: [], subtotal: 0, total: 0 });
+  // `lines` (what each line means now) and `notices` (what changed while away): cart route `cartResponse`.
+  assert.deepStrictEqual(body, { items: [], subtotal: 0, total: 0, lines: [], notices: [] });
   assert.strictEqual(
     Object.prototype.hasOwnProperty.call(body, "ownerToken"),
     false,
@@ -188,7 +189,8 @@ test("GET returns an empty cart and a token without storing anything; the first 
   assert.ok(token, "GET must set a cart-token cookie");
   assert.match(cookie, /HttpOnly/i);
   assert.match(cookie, /SameSite=Lax/i);
-  assert.match(cookie, /Max-Age=604800/i);
+  // 30 days, renewed on use (CART_COOKIE_MAX_AGE_SECONDS; docs/commerce-operations.md, "Carts").
+  assert.match(cookie, /Max-Age=2592000/i);
 
   assert.strictEqual(await Cart.countDocuments({}), 0, "a read must never create a cart");
 
@@ -741,6 +743,8 @@ test("the same owner token is isolated per business host", async () => {
     items: [],
     subtotal: 0,
     total: 0,
+    lines: [],
+    notices: [],
   });
   assert.strictEqual(cartTokenFromResponse(otherGet), token);
 

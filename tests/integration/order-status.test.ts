@@ -340,6 +340,8 @@ test("the status response uses a strict guest-safe allowlist", async () => {
       "paidAt",
       "paymentAttemptFailed",
       "paymentMethod",
+      // Whether the order is tied to a customer account: a boolean, never the account.
+      "placedAsGuest",
       "refundedAt",
       "refundedTotal",
       "taxInclusive",
@@ -361,6 +363,8 @@ test("the status response uses a strict guest-safe allowlist", async () => {
   );
   // Phase 4B: the order's own payment method ("cod" or null); guest orders record none.
   assert.strictEqual(statusBody.paymentMethod, null);
+  // This order has no customer account, and only that yes/no reaches the page.
+  assert.strictEqual(statusBody.placedAsGuest, true);
 
   assert.strictEqual(statusBody.items.length, 1);
   assert.deepStrictEqual(
@@ -373,6 +377,7 @@ test("the status response uses a strict guest-safe allowlist", async () => {
     "orderProofHash",
     "idempotencyKey",
     "orderProof",
+    "customer",
     "customerEmail",
     "shippingAddress",
     "inventoryState",
@@ -388,6 +393,8 @@ test("the status response uses a strict guest-safe allowlist", async () => {
       `${forbidden} must never be exposed`,
     );
   }
+  // Nor anywhere inside it: the shopper's email address is not on this page.
+  assert.strictEqual(JSON.stringify(statusBody).includes("status@example.com"), false, "no email address in the response");
 
   assert.strictEqual(statusBody.reservationExpiresAt !== null, true);
   assert.strictEqual(statusBody.paidAt, null);

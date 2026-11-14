@@ -335,7 +335,7 @@ test("media: a large declared Content-Length is rejected before buffering", asyn
   assert.equal(uploadMock.mock.callCount(), 0);
 });
 
-test("media: storage failure returns 502 and stores no metadata", async () => {
+test("media: storage failure returns 502, leaves no visible media and records the failed upload", async () => {
   const { business, headers } = await setupBusiness({
     email: "s3down@example.com",
     slug: "s3down-biz",
@@ -353,10 +353,36 @@ test("media: storage failure returns 502 and stores no metadata", async () => {
   assert.equal(res.status, 502);
   const data = await res.json();
   assert.equal(data.code, "storage_error");
-  assert.equal(await Media.countDocuments({}), 0);
+
+  // The record is written first, as `pending`, so no file can exist without one
+  // (docs/platform-management.md, "Media uploads"). After the failure it stays only
+  // as a closed record: failed, deleted, and with its storage confirmed removed.
+  assert.equal(await Media.countDocuments({ business: business._id, deletedAt: null }), 0, "no visible media");
+  const records = await Media.find({ business: business._id }).lean();
+  assert.equal(records.length, 1);
+  const [failed] = records;
+  assert.equal(failed.uploadState, "failed");
+  assert.ok(failed.deletedAt instanceof Date, "marked deleted");
+  assert.ok(failed.storageDeletedAt instanceof Date, "its storage counts as removed");
+  assert.equal(failed.deletedAt.getTime(), failed.storageDeletedAt.getTime(), "both in the same cleanup step");
+
   // The upload may have written the object before failing, so an idempotent
   // cleanup is attempted for the fresh key.
   assert.equal(removeMock.mock.callCount(), 1);
+  assert.equal(removeMock.mock.calls[0].arguments[0], failed.storageKey, "the cleanup removes this upload's own key");
+
+  // The library neither lists it, nor asks for it to be removed, nor counts its size.
+  const listRes = await callHandler(
+    mediaGET,
+    new Request(`${BASE}/api/businesses/${business._id}/media`, { method: "GET", headers: { ...headers } }),
+    ctx(String(business._id)),
+  );
+  assert.equal(listRes.status, 200);
+  const list = await listRes.json();
+  assert.deepEqual(list.media, []);
+  assert.equal(list.total, 0);
+  assert.deepEqual(list.pendingCleanup, []);
+  assert.equal(list.storage.usedBytes, 0);
 });
 
 test("media: missing or malformed public delivery URL fails before uploading", async () => {

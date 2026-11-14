@@ -39,6 +39,12 @@ const DAY = 86_400_000;
 // A fixed range so dates are deterministic: 2026-10-01 .. 2026-10-10 (UTC).
 const RANGE = parseDateRange("2026-10-01", "2026-10-10");
 const inRange = (day: number) => new Date(Date.UTC(2026, 9, day, 12));
+/** First-time customers per day across RANGE: the given days, and 0 on every other day. */
+const newSeries = (counts: Record<string, number> = {}) =>
+  Array.from({ length: 10 }, (_, i) => {
+    const day = `2026-10-${String(i + 1).padStart(2, "0")}`;
+    return { day, count: counts[day] ?? 0 };
+  });
 
 async function order(business: unknown, o: {
   email: string; total: number; status: string; method?: "online" | "cod"; createdAt: Date; paidAt?: Date; refundedAt?: Date;
@@ -133,7 +139,15 @@ test("figures match the order records exactly and never include another business
   assert.deepEqual(data.outOfStock.map((p) => p.name), ["Mug"], "archived products are ignored");
 
   // Customers: same identity rules as the Customers page.
-  assert.deepEqual(data.customers, { inRange: 5, new: 4, returning: 1 });
+  // Repeat = two or more orders: "ret" (one before the range, one in it) and "new" (paid and
+  // cancelled). First orders of the four new customers: new 10-03, pending and refund 10-06, usd 10-08.
+  assert.deepEqual(data.customers, {
+    inRange: 5,
+    new: 4,
+    returning: 1,
+    repeat: 2,
+    newSeries: newSeries({ "2026-10-03": 1, "2026-10-06": 2, "2026-10-08": 1 }),
+  });
   const id = String(business._id);
   const headers = await createAuthHeadersForUser(String(owner._id), "user", owner.tokenVersion);
   const res = (await callHandler(customersGET, new Request(`http://localhost/api/businesses/${id}/manage/customers`, { headers: { ...headers } }), { params: Promise.resolve({ id }) })) as Response;
@@ -153,7 +167,7 @@ test("an empty business gets zeros, not errors", async () => {
   assert.equal(data.orders.placed, 0);
   assert.deepEqual(data.sales, []);
   assert.deepEqual(data.topProducts, []);
-  assert.deepEqual(data.customers, { inRange: 0, new: 0, returning: 0 });
+  assert.deepEqual(data.customers, { inRange: 0, new: 0, returning: 0, repeat: 0, newSeries: newSeries() });
   assert.equal(data.plan.active, false);
   assert.equal(data.series.orders.every((p) => p.count === 0), true);
 });

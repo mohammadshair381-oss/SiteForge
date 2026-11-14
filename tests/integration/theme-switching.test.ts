@@ -84,9 +84,12 @@ test("switching through all nine themes keeps the homepage drafts, products, sto
     assert.deepEqual(data?.products.map((p) => p.slug), ["linen-shirt"]);
   }
   const businessAfter = await Business.findById(id).lean();
+  // Every design-draft save moves the draft's version on (lib/draft-version.ts), once per
+  // theme switched to above, so it is checked on its own rather than compared.
+  assert.equal(businessAfter?.designDraftVersion, (businessBefore?.designDraftVersion ?? 0) + THEME_IDS.length + 1, "one version per design save");
   // Publishing a design also stores the design choices; everything else is identical.
   const withoutDesign = (doc: unknown) => {
-    const { updatedAt: _updatedAt, themeSettings, ...rest } = doc as Record<string, unknown>;
+    const { updatedAt: _updatedAt, designDraftVersion: _designDraftVersion, themeSettings, ...rest } = doc as Record<string, unknown>;
     const { design: _design, primaryColor: _primary, accentColor: _accent, font: _font, ...settings } = themeSettings as Record<string, unknown>;
     return { ...rest, themeSettings: settings };
   };
