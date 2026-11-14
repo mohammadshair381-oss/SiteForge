@@ -41,7 +41,9 @@ async function mergeGuestCart(businessId: string, ownId: unknown, guestId: unkno
       if (!guest) return;
       const own = await Cart.findOne({ _id: ownId, business: businessId }).session(session);
       if (!own) return;
-      const { items, notices } = await revalidateCartItems(mergeCartLines(own.items, guest.items), businessId, session);
+      // Plain values only: `mergeCartLines` copies lines with `{ ...line }`, and copying a Mongoose
+      // subdocument that way keeps its internals, not its fields, so the account cart's lines were lost.
+      const { items, notices } = await revalidateCartItems(mergeCartLines(own.toObject().items, guest.items), businessId, session);
       own.items = items;
       own.subtotal = cartTotalOf(items);
       own.total = own.subtotal;
