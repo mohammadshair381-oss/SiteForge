@@ -355,7 +355,7 @@ export function notifyOrder(what: OrderNotification, businessId: string, orderId
   queue(businessId, async (now) => {
     const order = await Order.findOne({ _id: new mongoose.Types.ObjectId(orderId), business: new mongoose.Types.ObjectId(businessId) })
       .select("orderNumber total currency paymentMethod items.quantity items.product createdAt paidAt cancelledAt cancelReason shippedAt deliveredAt")
-      .lean<OrderFacts & { items?: Array<{ quantity: number; product: unknown }> }>();
+      .lean<Omit<OrderFacts, "items"> & { items?: Array<{ quantity: number; product: unknown }> }>();
     if (!order) return [];
     const base = dashboardBase(businessId);
     if (what === "placed") return [orderPlacedEvent(order, base), ...(await stockEvents(businessId, now, (order.items ?? []).map((item) => item.product)))];

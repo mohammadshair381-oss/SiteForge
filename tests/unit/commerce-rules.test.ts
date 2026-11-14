@@ -47,10 +47,10 @@ test("variants: option rules, matrix validation, prices and labels", () => {
   assert.equal(productOptionsSchema.safeParse([1, 2, 3, 4].map((n) => ({ name: `O${n}`, values: ["a"] }))).success, false, "max 3 options");
 
   const options = [{ name: "Size", values: ["S", "M"] }, { name: "Color", values: ["Red"] }];
-  const ok = normalizeVariants(options, [{ options: { size: "s", COLOR: "red" }, sku: "", price: null, compareAtPrice: null, archived: false }], 10);
+  const ok = normalizeVariants(options, [{ options: { size: "s", COLOR: "red" }, sku: "", price: null, compareAtPrice: null, archived: false, imageUrl: "" }], 10);
   assert.equal(ok.ok, true);
   if (ok.ok) assert.deepEqual(ok.variants[0].optionList, [{ name: "Size", value: "S" }, { name: "Color", value: "Red" }]);
-  const bad = normalizeVariants(options, [{ options: { Size: "S", Color: "Red" }, sku: "", price: 12, compareAtPrice: 11, archived: false }], 10);
+  const bad = normalizeVariants(options, [{ options: { Size: "S", Color: "Red" }, sku: "", price: 12, compareAtPrice: 11, archived: false, imageUrl: "" }], 10);
   assert.equal(bad.ok, false, "compare-at must exceed the variant price");
 
   assert.equal(effectivePrice(10, { price: null }), 10);

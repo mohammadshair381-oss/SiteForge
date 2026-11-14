@@ -149,7 +149,7 @@ export default function NavigationBuilder({
     const parse = (id: string) => id.split(":").slice(1).map(Number);
     const [fromTop, fromChild] = parse(fromId);
     const [toTop, toChild] = parse(toId);
-    const next = items.map((item) => ({ ...item, children: item.children ? [...item.children] : item.children }));
+    const next: NavItem[] = items.map((item) => ({ ...item, children: item.children ? [...item.children] : item.children }));
     const moved = fromChild === undefined ? next[fromTop] : (next[fromTop].children ?? [])[fromChild];
     if (!moved) return;
     // A link with its own dropdown stays at the top: menus have one level.

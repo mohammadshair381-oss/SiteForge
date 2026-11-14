@@ -133,10 +133,12 @@ function managedByBillingProvider(subscription: { provider?: string | null; prov
 export async function POST(request: Request) {
   return handle(async () => {
     const config = env();
-    if (!legacyWebhookAvailable(config)) {
+    const secret = config.PAYMENT_WEBHOOK_SECRET;
+    // `legacyWebhookAvailable` already refuses a missing secret; checking it here as well lets
+    // TypeScript see that `secret` is a string below.
+    if (!secret || !legacyWebhookAvailable(config)) {
       throw new HttpError(400, "Payment webhooks are not configured", "not_configured");
     }
-    const secret = config.PAYMENT_WEBHOOK_SECRET;
 
     const rawBody = await request.text();
     const signature = request.headers.get("x-signature");

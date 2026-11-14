@@ -335,7 +335,9 @@ export async function syncProviderSubscription(input: {
   const planDoc = await Plan.findOne({ "providerPlans.planId": remote.plan_id }).lean<PlanDoc & { _id: mongoose.Types.ObjectId }>();
   const mapping = planDoc?.providerPlans?.find((entry) => entry.planId === remote.plan_id) ?? null;
 
-  let outcome: SyncOutcome = "ignored";
+  // Widened on purpose: it is reassigned inside the transaction callback, which TypeScript's
+  // narrowing does not follow, so a plain annotation would leave it narrowed to "ignored" below.
+  let outcome = "ignored" as SyncOutcome;
   const session = await mongoose.startSession();
   try {
     await session.withTransaction(async () => {
