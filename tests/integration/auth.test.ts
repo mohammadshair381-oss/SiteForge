@@ -12,6 +12,7 @@ import { POST as passwordHandler } from "@/app/api/auth/password/route";
 import { makeRequest, makeAuthenticatedRequest, createAuthHeadersForUser, callHandler } from "./helpers/auth";
 import { signSession, SESSION_MAX_AGE_SECONDS } from "@/lib/auth/tokens";
 import { SESSION_COOKIE } from "@/lib/auth/session";
+import { signInWithCode } from "./helpers/platform-login";
 import { User } from "@/models/User";
 import { getMockCookieStore, resetMockCookieStore } from "./helpers/mock-next-headers-setup";
 import { drainAfterResponseTasks } from "@/lib/after-response";
@@ -62,13 +63,15 @@ test("registering an email twice keeps one account and gives the same answer", a
   assert.equal((await User.findOne({ email }))?.name, "User 1");
 });
 
-test("login with correct credentials returns 200 and user data", async () => {
+test("login with correct credentials returns 200 and user data once the new-device code is entered", async () => {
   const user = await createUser({ email: "login-test@example.com", password: "correct-password" });
   const password = getPlainPassword(user);
   assert.ok(password);
 
-  const req = makeRequest("http://localhost/api/auth/login", { email: "login-test@example.com", password });
-  const res = await loginHandler(req);
+  // A browser without a known-device marker: the right password alone signs nothing in.
+  const done = await signInWithCode("login-test@example.com", password);
+  assert.equal(done.first.status, 202);
+  const res = done.final;
 
   assert.equal(res.status, 200);
   const body = await res.json();
@@ -298,11 +301,7 @@ test("a fresh login after logout issues a working session", async () => {
   );
   assert.equal(logoutRes.status, 200);
 
-  const loginReq = makeRequest("http://localhost/api/auth/login", {
-    email: "logout-relogin@example.com",
-    password: "password123",
-  });
-  const loginRes = await loginHandler(loginReq);
+  const loginRes = (await signInWithCode("logout-relogin@example.com", "password123")).final;
   assert.equal(loginRes.status, 200);
 
   // The login handler stored a brand-new session cookie; replay it against /me.

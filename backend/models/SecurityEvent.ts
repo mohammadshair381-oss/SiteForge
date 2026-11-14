@@ -42,6 +42,8 @@ export const SECURITY_EVENT_TYPES = [
   "email_verification_failed",
   /** A signed-in platform user entered a wrong current password when changing it. */
   "password_change_failed",
+  /** A new-device sign-in code was refused (wrong, expired, used up, or the account changed meanwhile). */
+  "login_code_failed",
 ] as const;
 export type SecurityEventType = (typeof SECURITY_EVENT_TYPES)[number];
 
@@ -54,6 +56,10 @@ export const SECURITY_EVENT_REASONS = [
   "reset_conflict",
   "token_version_mismatch",
   "account_missing",
+  "wrong_code",
+  "expired_code",
+  "too_many_attempts",
+  "account_changed",
 ] as const;
 export type SecurityEventReason = (typeof SECURITY_EVENT_REASONS)[number];
 

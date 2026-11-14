@@ -10,14 +10,17 @@ import { env, isProduction } from "../env";
  *
  * What it is: a signed, httpOnly cookie issued to a browser that has signed in to one platform
  * account with the correct password. It names a random device id and is bound through keyed hashes
- * to the email (which is never in the cookie) and to the account's CURRENT password, so any password
- * change outdates every older marker.
+ * to the email (which is never in the cookie) and to the account's CURRENT password and trusted-device
+ * generation (`User.deviceTrustVersion`), so a password change, or an admin's sign-out-everywhere,
+ * deactivation or role change, outdates every older marker. An ordinary logout does not.
  *
- * What it is NOT: authentication. No guard reads it, and a login carrying it still needs the correct
- * password. Its only effect is in the login route: that browser uses its own small failure budget
+ * What it is NOT: a session. No guard reads it, and a login carrying it still needs the correct
+ * password. Its effects are in the login route only: that browser uses its own small failure budget
  * instead of the account-wide one, so people guessing from elsewhere cannot lock the owner out of a
- * browser the owner has already used. A stolen marker grants only that small budget of guesses, and only
- * until the password changes. It survives logout on purpose: it is not a session.
+ * browser the owner has already used; and, with the right password, it skips the emailed new-device
+ * code (lib/auth/login-challenge.ts), which is the only other way a browser gets one. A stolen marker is
+ * worth something only together with the password, and only until the password changes. It survives
+ * logout on purpose: it is not a session.
  */
 export const PLATFORM_DEVICE_COOKIE = "swb_device";
 /** `__Host-` in production: Secure, Path=/, no Domain, so a store's subdomain cannot set it. */
@@ -50,8 +53,18 @@ function safeEqual(a: string, b: string): boolean {
 
 const accountHash = (email: string) => keyedHash(ACCOUNT_KEY_INFO, `account:${email}`);
 
-/** Reveals nothing about the password hash, and changes with the password. Never log it. */
-export const platformCredentialFingerprint = (passwordHash: string) => keyedHash(CREDENTIAL_KEY_INFO, `credential:${passwordHash}`);
+/**
+ * Reveals nothing about the password hash, and changes with the password and with the account's
+ * trusted-device generation (`User.deviceTrustVersion`). A missing or zero generation gives exactly
+ * the fingerprint used before the generation existed, so markers already issued keep working until
+ * an admin action raises it. bcrypt hashes contain no ":", so the two forms cannot collide. Never log it.
+ */
+export function platformCredentialFingerprint(passwordHash: string, deviceTrustVersion?: number | null): string {
+  const generation =
+    typeof deviceTrustVersion === "number" && Number.isSafeInteger(deviceTrustVersion) && deviceTrustVersion > 0 ? deviceTrustVersion : 0;
+  const message = generation > 0 ? `credential:${passwordHash}:trust:${generation}` : `credential:${passwordHash}`;
+  return keyedHash(CREDENTIAL_KEY_INFO, message);
+}
 
 export const newPlatformDeviceId = () => crypto.randomBytes(16).toString("base64url");
 

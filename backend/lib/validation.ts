@@ -33,6 +33,11 @@ export const loginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
+/** The six-digit code emailed for a new-device sign-in. The pending sign-in itself comes only from its cookie. */
+export const loginCodeSchema = z.object({
+  code: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit code from the email."),
+});
+
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, "Current password is required"),
   newPassword: passwordSchema,

@@ -42,6 +42,15 @@ export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 export const AUTH_TOKEN_TYPES = ["password_reset", "email_verification"] as const;
 export type ActionTokenType = (typeof AUTH_TOKEN_TYPES)[number];
 
+/**
+ * A pending sign-in from a new device (lib/auth/login-challenge.ts). Stored in the same
+ * `AuthToken` collection but deliberately NOT an action token: the generic helpers in
+ * lib/auth/action-tokens.ts refuse it, so it can only be completed with its emailed code.
+ */
+export const LOGIN_CODE_TOKEN_TYPE = "login_code" as const;
+export const AUTH_TOKEN_RECORD_TYPES = [...AUTH_TOKEN_TYPES, LOGIN_CODE_TOKEN_TYPE] as const;
+export type AuthTokenRecordType = (typeof AUTH_TOKEN_RECORD_TYPES)[number];
+
 // Append only: stored `Business.themeId` values must stay valid.
 export const THEME_IDS = ["aurora", "market", "bistro", "studio", "launch", "atelier", "volt", "harvest", "forma"] as const;
 export type ThemeId = (typeof THEME_IDS)[number];

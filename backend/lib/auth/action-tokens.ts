@@ -181,7 +181,8 @@ export async function consumeActionToken(
     token: {
       id: consumed._id,
       user: consumed.user,
-      type: consumed.type,
+      // The filter matched `type`, so this is never a `login_code` record.
+      type,
       expiresAt: consumed.expiresAt,
       usedAt: now,
     },

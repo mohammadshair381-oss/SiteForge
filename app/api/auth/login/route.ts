@@ -11,6 +11,8 @@ import { rateLimitSourceKey } from "@/lib/client-address";
 import { checkRateLimit, consumeRateLimit, enforceRateLimit, getClientIp, rateLimitedError, releaseRateLimit } from "@/lib/rate-limit";
 import { User } from "@/models/User";
 import { recordSecurityEvent } from "@/lib/security-events";
+import { appendLoginChallengeCookie, LoginCodeDeliveryError, startLoginChallenge } from "@/lib/auth/login-challenge";
+import { assertAccountCodeBudget, LOGIN_CODE_NOT_SENT, LOGIN_CODE_SEND_WINDOW_MS, LOGIN_CODE_SENDS_PER_ACCOUNT } from "@/lib/auth/login-code-limits";
 
 const LOGIN_WINDOW_MS = 5 * 60 * 1000;
 const LOGIN_MAX_PER_SOURCE = 10;
@@ -69,12 +71,13 @@ export async function POST(request: Request) {
 
     await dbConnect();
 
-    // A marker only chooses a failure budget. It never replaces the password check below.
+    // A marker never replaces the password check below. It chooses a failure budget, and a valid
+    // one for this account and its current password lets this browser skip the emailed code.
     const device = await verifyPlatformDevice(readPlatformDeviceCookie(request), {
       email: body.email,
       currentCredential: async () => {
         const account = await User.findOne({ email: body.email }).select("+passwordHash");
-        return account?.active ? platformCredentialFingerprint(account.passwordHash) : null;
+        return account?.active ? platformCredentialFingerprint(account.passwordHash, account.deviceTrustVersion) : null;
       },
     });
     const returnAttempt = await reserveLoginAttempt(source, body.email, device?.deviceId);
@@ -120,6 +123,32 @@ export async function POST(request: Request) {
     // Not a failure. Returning it is best-effort: losing it must not stop a correct sign-in.
     await returnAttempt().catch(() => console.warn("[login] a rate-limit unit could not be returned"));
 
+    if (!device) {
+      // The right password from a browser this account has not confirmed: no session and no
+      // marker yet. Every platform account takes this step, whatever its role; only the
+      // emailed code, entered from this same browser, finishes the sign-in (./code/route.ts).
+      // No code is emailed while the account has no wrong-code budget left for today.
+      await assertAccountCodeBudget(user._id.toString());
+      await enforceRateLimit({ key: `login-code:send:${user._id.toString()}`, limit: LOGIN_CODE_SENDS_PER_ACCOUNT, windowMs: LOGIN_CODE_SEND_WINDOW_MS });
+      try {
+        const started = await startLoginChallenge(
+          {
+            _id: user._id,
+            email: user.email,
+            name: user.name,
+            passwordHash: user.passwordHash,
+            tokenVersion: user.tokenVersion,
+            deviceTrustVersion: user.deviceTrustVersion,
+          },
+          newPlatformDeviceId(),
+        );
+        return appendLoginChallengeCookie(ok(started.view, { status: 202 }), started.rawChallenge);
+      } catch (error) {
+        if (error instanceof LoginCodeDeliveryError) throw new HttpError(503, LOGIN_CODE_NOT_SENT, "code_not_sent");
+        throw error;
+      }
+    }
+
     if (user.platformRole === "super_admin") {
       await recordSecurityEvent({ type: "admin_login", userId: user._id, request });
     }
@@ -130,11 +159,11 @@ export async function POST(request: Request) {
       tokenVersion: user.tokenVersion,
     });
 
-    // Refreshes (or creates) this browser's marker, bound to the password just verified.
+    // A known device of this account: refreshes its marker, bound to the password just verified.
     const deviceToken = await signPlatformDevice({
-      deviceId: device?.deviceId ?? newPlatformDeviceId(),
+      deviceId: device.deviceId,
       email: body.email,
-      credential: platformCredentialFingerprint(user.passwordHash),
+      credential: platformCredentialFingerprint(user.passwordHash, user.deviceTrustVersion),
     });
     return appendPlatformDeviceCookie(ok({ user: user.toJSON() }), deviceToken);
   });

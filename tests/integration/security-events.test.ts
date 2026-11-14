@@ -6,7 +6,7 @@ import { clearAllCollections, connectTestDB, disconnectTestDB } from "./helpers/
 import { createUser } from "./helpers/fixtures";
 import { callHandler, createAuthHeadersForUser } from "./helpers/auth";
 import { clearRequestCookies } from "./helpers/mock-next-headers-setup";
-import { POST as loginPOST } from "@/app/api/auth/login/route";
+import { signInWithCode } from "./helpers/platform-login";
 import { GET as securityGET } from "@/app/api/admin/security-events/route";
 import { PATCH as userPATCH } from "@/app/api/admin/users/[id]/route";
 import { getSecuritySummary, listSecurityEvents, securityQuerySchema } from "@/lib/admin/security";
@@ -39,15 +39,9 @@ function freshIp() {
   return `198.18.${Math.floor(ipCounter / 250) % 250}.${ipCounter % 250}`;
 }
 
+// A whole sign-in as a person makes it: the password, then (this being a new browser) the emailed code.
 async function login(email: string, password: string, ip = freshIp()) {
-  const res = (await callHandler(
-    loginPOST,
-    new Request("http://localhost/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-forwarded-for": ip },
-      body: JSON.stringify({ email, password }),
-    }),
-  )) as Response;
+  const res = (await signInWithCode(email, password, { ip })).final;
   return { status: res.status, body: (await res.json().catch(() => ({}))) as Record<string, any> };
 }
 

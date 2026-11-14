@@ -11,8 +11,11 @@ import {
 import { Business } from "@/models/Business";
 import { User } from "@/models/User";
 
-/** Sign-in failures of either kind (platform users, storefront customers). */
-const LOGIN_FAILURES = ["login_failed", "customer_login_failed"];
+/**
+ * Sign-in failures of every kind (platform users, storefront customers, and refused new-device codes,
+ * which only someone holding the right password can cause), for the targeted-account and busy-source alerts.
+ */
+const LOGIN_FAILURES = ["login_failed", "customer_login_failed", "login_code_failed"];
 
 /**
  * Read-only security monitoring for super admins (server-only).
@@ -39,6 +42,8 @@ function retentionFloor(now: Date): Date {
 
 export interface SecuritySummary {
   failedLogins: { lastHour: number; last24h: number; last7d: number };
+  /** Refused new-device sign-in codes (platform): the password was right, the code was not. */
+  failedLoginCodes: { lastHour: number; last24h: number };
   /** Storefront customer sign-in failures (all stores). */
   customerFailedLogins: { lastHour: number; last24h: number };
   passwordResets24h: { requested: number; failed: number; completed: number };
@@ -68,6 +73,7 @@ export async function getSecuritySummary(now = new Date()): Promise<SecuritySumm
     lastHour, last24h, last7d, adminLogins24h, adminReauthFailures24h,
     customerHour, customerDay, resetRequested, resetFailed, resetCompleted, revoked24h,
     platformRevoked24h, verifyFailed24h, passwordChangeFailed24h,
+    codeFailedHour, codeFailedDay,
     targeted, sources,
   ] = await Promise.all([
     count("login_failed", HOUR),
@@ -84,6 +90,8 @@ export async function getSecuritySummary(now = new Date()): Promise<SecuritySumm
     count("platform_session_revoked", DAY),
     count("email_verification_failed", DAY),
     count("password_change_failed", DAY),
+    count("login_code_failed", HOUR),
+    count("login_code_failed", DAY),
     SecurityEvent.aggregate<{ _id: { digest: string; scope: string | null; business: unknown }; failures: number; user: unknown }>([
       { $match: { type: { $in: LOGIN_FAILURES }, createdAt: since(HOUR), emailDigest: { $type: "string" } } },
       // The same email on the platform or at two stores is three different accounts.
@@ -108,6 +116,7 @@ export async function getSecuritySummary(now = new Date()): Promise<SecuritySumm
   const businessById = new Map(businesses.map((b) => [String(b._id), b]));
   return {
     failedLogins: { lastHour, last24h, last7d },
+    failedLoginCodes: { lastHour: codeFailedHour, last24h: codeFailedDay },
     customerFailedLogins: { lastHour: customerHour, last24h: customerDay },
     passwordResets24h: { requested: resetRequested, failed: resetFailed, completed: resetCompleted },
     revokedCustomerSessions24h: revoked24h,

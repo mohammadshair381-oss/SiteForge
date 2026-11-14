@@ -305,9 +305,18 @@ never change with the platform. Use `frontend/components/ui/*`, `confirmDialog` 
   cross-site writes to every `/api` route (`isAllowedApiOrigin`).
 - Platform sign-in limits (`app/api/auth/login/route.ts`, `docs/security-monitoring.md`): only failures count against an
   account, reserved before the password check and returned after a full sign-in. Sources are IPv4 addresses or IPv6 /64s
-  (`rateLimitSourceKey`). The known-device marker (`backend/lib/auth/platform-device.ts`) only selects a failure budget and must
-  never be treated as authentication. An unconfirmed account's correct password stays counted, and no limit may reveal
-  whether an account exists.
+  (`rateLimitSourceKey`). The known-device marker (`backend/lib/auth/platform-device.ts`) never replaces the password: it
+  selects a failure budget and, when valid for the account and its current password, skips the new-device code. No guard
+  may read it. An unconfirmed account's correct password stays counted, and no limit may reveal whether an account exists.
+- New-device sign-in codes (`backend/lib/auth/login-challenge.ts`, `docs/security-monitoring.md`): every platform account,
+  whatever its role; never storefront customers. A right password on a browser without a valid marker answers 202 and
+  emails a code: NO session and NO marker until `POST /api/auth/login/code` accepts it. The pending sign-in lives only in
+  its httpOnly cookie and as an `AuthToken` of type `login_code` (existing indexes; `action-tokens.ts` refuses that type).
+  Store codes only as their keyed hash and never return or log them: only `backend/lib/auth/dev-login-code.ts` prints one,
+  and only with `NODE_ENV=development`, `AUTH_LOG_OTP=true` and `EMAIL_PROVIDER` `console`/`memory`. Keep the 5-minute,
+  single-use limits and the 5 guesses per pending sign-in (a resend never restores them) atomic, and the account's daily
+  wrong-code budget (`backend/lib/auth/login-code-limits.ts`) reserved before every comparison. The marker fingerprint includes
+  `User.deviceTrustVersion` only when above 0, so markers issued before it keep working.
 - Platform admin (`/api/admin/*`): every handler calls `requireSuperAdmin()`
   first. Business status changes are explicit `suspend` / `reactivate` actions
   with a required reason (reactivation returns to `draft`; only the owner's
@@ -325,7 +334,9 @@ never change with the platform. Use `frontend/components/ui/*`, `confirmDialog` 
   versions, payment secrets, order proofs or shopper names/emails from admin
   views; regex-escape search input.
 - Platform account actions (`backend/lib/admin/user-actions.ts`): increment
-  `tokenVersion` on every change, never touch business memberships, refuse
+  `tokenVersion` on every change, and `deviceTrustVersion` (revokes known devices and pending
+  new-device sign-ins) on `force_signout`, `deactivate` and both role changes; never on an ordinary
+  logout, and never bind device trust to `tokenVersion`. Never touch business memberships, refuse
   self-actions, keep at least one active super admin (serialised in the
   transaction), require the actor's password for role changes, audit in the
   same transaction. See `docs/security-monitoring.md`.

@@ -13,6 +13,8 @@ import { User } from "@/models/User";
  * - Every action increments `tokenVersion`, which `requireUser()` checks on
  *   every request, so all of the user's existing sessions stop working
  *   immediately (deactivation, role changes and forced sign-out alike).
+ *   All but reactivation also increment `deviceTrustVersion`, so known
+ *   devices must confirm an emailed sign-in code again.
  * - Each change is a conditional update recorded in the append-only admin
  *   audit log in the same transaction (`runAuditedAdminAction`).
  * - Lock-out protection: an admin cannot act on their own account, and the
@@ -64,12 +66,15 @@ const FILTER: Record<UserAdminAction, Record<string, unknown>> = {
   force_signout: { active: { $ne: false } },
 };
 
+// `deviceTrustVersion` (see User): these four are security responses, so every known-device marker
+// and pending new-device sign-in of the account stops working too, and each browser must enter an
+// emailed code again. Reactivation needs no bump: the deactivation before it already raised it.
 const UPDATE: Record<UserAdminAction, Record<string, unknown>> = {
-  deactivate: { $set: { active: false }, $inc: { tokenVersion: 1 } },
+  deactivate: { $set: { active: false }, $inc: { tokenVersion: 1, deviceTrustVersion: 1 } },
   reactivate: { $set: { active: true }, $inc: { tokenVersion: 1 } },
-  grant_super_admin: { $set: { platformRole: "super_admin" }, $inc: { tokenVersion: 1 } },
-  revoke_super_admin: { $set: { platformRole: "user" }, $inc: { tokenVersion: 1 } },
-  force_signout: { $inc: { tokenVersion: 1 } },
+  grant_super_admin: { $set: { platformRole: "super_admin" }, $inc: { tokenVersion: 1, deviceTrustVersion: 1 } },
+  revoke_super_admin: { $set: { platformRole: "user" }, $inc: { tokenVersion: 1, deviceTrustVersion: 1 } },
+  force_signout: { $inc: { tokenVersion: 1, deviceTrustVersion: 1 } },
 };
 
 const REFUSAL: Record<UserAdminAction, { message: string; code: string }> = {
@@ -162,7 +167,7 @@ export async function applyUserAdminAction(input: {
         targetLabel: previous.name ?? "",
         reason: input.reason,
         before: { platformRole: previous.platformRole, active: previous.active !== false },
-        after: { ...after, sessionsRevoked: true },
+        after: { ...after, sessionsRevoked: true, ...(input.action === "reactivate" ? {} : { trustedDevicesRevoked: true }) },
       },
     };
   });

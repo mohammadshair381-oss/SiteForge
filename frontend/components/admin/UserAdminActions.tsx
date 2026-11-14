@@ -46,7 +46,7 @@ const COPY: Record<Action, { button: string; title: string; body: string; confir
   force_signout: {
     button: "Sign out everywhere",
     title: "End all of this user's sessions?",
-    body: "Every signed-in browser and device of this user is signed out on its next request. The account stays active.",
+    body: "Every signed-in browser and device of this user is signed out on its next request, and each must confirm an emailed sign-in code the next time it signs in. The account stays active.",
     confirm: "Sign out everywhere",
     danger: false,
   },

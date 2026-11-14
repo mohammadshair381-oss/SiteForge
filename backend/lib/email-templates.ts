@@ -228,6 +228,50 @@ export function renderEmailVerificationEmail(
   return { subject, text, html };
 }
 
+export interface LoginCodeEmailInput {
+  name?: string | null;
+  /** Exactly six digits; never logged. */
+  code: string;
+  expiresInMinutes: number;
+}
+
+/** The code a platform account enters to finish signing in on a new device. */
+export function renderLoginCodeEmail(input: LoginCodeEmailInput): RenderedEmail {
+  if (!/^\d{6}$/.test(input.code)) throw new Error("A sign-in code must be six digits");
+  const name = normalizeName(input.name);
+  const minutes = Math.max(1, Math.trunc(input.expiresInMinutes));
+  const expiry = `This code expires in ${minutes} minute${minutes === 1 ? "" : "s"} and can be used once.`;
+  const warning = "If you did not just try to log in, do not share this code with anyone. Someone may know your password: change it now from your account settings, or use \"Forgot your password?\" on the login page.";
+  const subject = "Your SiteForge sign-in code";
+
+  const text = [
+    name ? `Hi ${name},` : "Hi,",
+    "",
+    "Someone is logging in to your SiteForge account from a device we have not seen before. Enter this code to finish logging in:",
+    "",
+    `    ${input.code}`,
+    "",
+    expiry,
+    "",
+    warning,
+    "",
+    `— ${BRAND_NAME}`,
+  ].join("\n");
+
+  const html = renderLayout({
+    previewText: "Use this code to finish logging in to SiteForge.",
+    heading: "Your sign-in code",
+    paragraphsHtml: [
+      name ? `Hi ${escapeHtml(name)},` : "Hi,",
+      "Someone is logging in to your SiteForge account from a device we have not seen before. Enter this code to finish logging in:",
+    ],
+    bodyHtml: `<p style="margin:8px 0 24px;font-size:32px;line-height:1.2;font-weight:700;letter-spacing:0.3em;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:${HEADING_COLOR};">${escapeHtml(input.code)}</p>`,
+    afterCtaHtml: [escapeHtml(expiry), escapeHtml(warning)],
+  });
+
+  return { subject, text, html };
+}
+
 // ---------------------------------------------------------------------------
 // Storefront customer accounts (business-scoped). The store name is
 // owner-controlled: whitespace is collapsed and it is escaped for HTML.

@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import AuthShell, { AuthHeading, authInput, authLabel, authLink } from "@/components/auth/AuthShell";
 import { fieldErrorId, invalidProps, readApiError, summaryMessage } from "@/lib/api-errors";
 import { buttonClass } from "@/components/ui/Button";
@@ -13,7 +12,6 @@ import { registrationUnavailableReason } from "@/lib/platform-status";
 import { usePlatformStatus } from "@/lib/use-platform-status";
 
 export default function RegisterPage() {
-  const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -104,6 +102,7 @@ export default function RegisterPage() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className={authInput}
+            suppressHydrationWarning
             {...invalidProps(fieldErrors, "email", "register")}
           />
           <FieldError id={fieldErrorId("register", "email")} message={fieldErrors.email} />
@@ -119,6 +118,7 @@ export default function RegisterPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className={authInput}
+            suppressHydrationWarning
             {...invalidProps(fieldErrors, "password", "register")}
           />
           <p className="mt-1 text-xs text-slate-500">At least 8 characters.</p>

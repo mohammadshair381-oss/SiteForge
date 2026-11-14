@@ -16,7 +16,10 @@ import {
   makeRequest,
   type AuthHeaders,
 } from "./helpers/auth";
-import { resetMockCookieStore } from "./helpers/mock-next-headers-setup";
+import { getMockCookieStore, resetMockCookieStore } from "./helpers/mock-next-headers-setup";
+import { SESSION_COOKIE } from "@/lib/auth/session";
+import { PLATFORM_DEVICE_COOKIE } from "@/lib/auth/platform-device";
+import { signInWithCode } from "./helpers/platform-login";
 import { clearEmailOutbox, getEmailOutbox } from "@/lib/email";
 import { createActionToken } from "@/lib/auth/action-tokens";
 import { POST as registerPOST } from "@/app/api/auth/register/route";
@@ -438,7 +441,9 @@ test("an address cannot be probed by registering and then logging in", async () 
   assert.equal(again.status, 401);
   const token = lastVerificationToken();
   assert.equal((await callHandler(verifyPOST, makeRequest(VERIFY_URL, { token, password: "probing-password-1" }))).status, 200);
-  assert.equal((await login(email, "probing-password-1")).status, 200);
+  // Confirmed: the password is accepted, and this new browser then needs its emailed code.
+  assert.equal((await login(email, "probing-password-1")).status, 202);
+  assert.equal((await signInWithCode(email, "probing-password-1")).final.status, 200);
 });
 
 test("the link alone cannot confirm someone else's registration, and a wrong password does not use it up", async () => {
@@ -449,4 +454,49 @@ test("the link alone cannot confirm someone else's registration, and a wrong pas
   assert.equal(wrong.status, 400);
   assert.equal((await User.findOne({ email }))?.emailVerifiedAt, null);
   assert.equal((await callHandler(verifyPOST, makeRequest(VERIFY_URL, { token, password: "attackers-password" }))).status, 200);
+});
+
+test("a correct password on an unconfirmed account neither signs in nor confirms the address", async () => {
+  const email = uniqueEmail("unconfirmed-login");
+  await registerRaw(email, "the-right-password");
+  const login = (address: string, password: string) =>
+    callHandler(loginPOST, makeRequest("http://localhost/api/auth/login", { email: address, password }));
+  const sessionSet = () => getMockCookieStore().has(SESSION_COOKIE);
+  const deviceSet = (res: Response) => res.headers.getSetCookie().some((c) => c.startsWith(`${PLATFORM_DEVICE_COOKIE}=`));
+
+  // The answer a wrong password gets, from a confirmed account.
+  const confirmed = await createUser({ email: uniqueEmail("confirmed"), password: "their-own-password" });
+  resetMockCookieStore();
+  const wrong = await login(confirmed.email, "not-their-password");
+  assert.equal(wrong.status, 401);
+  const wrongBody = await wrong.json();
+
+  resetMockCookieStore();
+  const unconfirmed = await login(email, "the-right-password");
+  await drainAfterResponseTasks();
+  assert.equal(unconfirmed.status, 401);
+  assert.deepEqual(await unconfirmed.json(), wrongBody, "same answer as a wrong password");
+  assert.equal(sessionSet(), false, "no session cookie");
+  assert.equal(deviceSet(unconfirmed), false, "no device-marker cookie");
+  assert.deepEqual(unconfirmed.headers.getSetCookie(), [], "no cookie of any kind");
+
+  const stored = await User.findOne({ email }).lean();
+  assert.equal(stored?.emailVerifiedAt, null, "login never confirms an address");
+
+  // Control: once confirmed through the link and password, the same login issues both cookies,
+  // so the checks above are not passing for an unrelated reason.
+  const token = lastVerificationToken();
+  assert.equal((await callHandler(verifyPOST, makeRequest(VERIFY_URL, { token, password: "the-right-password" }))).status, 200);
+  // Confirmed now: the password alone still signs nothing in on this new browser ...
+  resetMockCookieStore();
+  const passwordStep = await login(email, "the-right-password");
+  assert.equal(passwordStep.status, 202);
+  assert.equal(sessionSet(), false);
+  assert.equal(deviceSet(passwordStep), false);
+  // ... and the emailed code does, setting the session and the known-device marker.
+  resetMockCookieStore();
+  const signedIn = (await signInWithCode(email, "the-right-password")).final;
+  assert.equal(signedIn.status, 200);
+  assert.equal(sessionSet(), true);
+  assert.equal(deviceSet(signedIn), true);
 });

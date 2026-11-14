@@ -19,6 +19,7 @@ import { drainAfterResponseTasks } from "@/lib/after-response";
 import { POST as resetPOST } from "@/app/api/auth/password/reset/route";
 import { POST as loginPOST } from "@/app/api/auth/login/route";
 import { GET as meHandler } from "@/app/api/auth/me/route";
+import { signInWithCode } from "./helpers/platform-login";
 import { User } from "@/models/User";
 import { AuthToken } from "@/models/AuthToken";
 
@@ -182,11 +183,10 @@ test("a valid token changes the password, revokes sessions, and bumps tokenVersi
     makeRequest("http://localhost/api/auth/login", { email, password: "old-password" }),
   );
   assert.equal(oldLogin.status, 401);
-  const newLogin = await callHandler(
-    loginPOST,
-    makeRequest("http://localhost/api/auth/login", { email, password: "new-password" }),
-  );
-  assert.equal(newLogin.status, 200);
+  // The new password is accepted; this browser is new, so the emailed code finishes the sign-in.
+  const newLogin = await signInWithCode(email, "new-password");
+  assert.equal(newLogin.first.status, 202);
+  assert.equal(newLogin.final.status, 200);
 });
 
 // ---------------------------------------------------------------------------

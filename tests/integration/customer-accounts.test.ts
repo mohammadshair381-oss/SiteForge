@@ -395,7 +395,8 @@ test("customer credentials and cookies never authenticate on the platform", asyn
   // is not a customer session.
   await createUser({ email: "ada@example.com", password: PASSWORD });
   const platformOk = await call(platformLoginPOST, "localhost:3000", { email: "ada@example.com", password: PASSWORD }, { ip: freshIp() });
-  assert.equal(platformOk.status, 200);
+  // Password accepted; on a new browser the platform then asks for its emailed code.
+  assert.equal(platformOk.status, 202);
   assert.equal(await me(host, `${SESSION_COOKIE}=anything`), null);
   assert.ok(await me(host, cookie), "customer session unaffected by platform login");
 });

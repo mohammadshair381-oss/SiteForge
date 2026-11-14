@@ -40,8 +40,13 @@ const TYPE_LABEL: Record<string, string> = {
   platform_session_revoked: "Revoked platform session used",
   email_verification_failed: "Email verification refused",
   password_change_failed: "Password change: wrong current password",
+  login_code_failed: "New-device sign-in code refused",
 };
 const REASON_LABEL: Record<string, string> = {
+  wrong_code: "wrong code",
+  expired_code: "expired code",
+  too_many_attempts: "too many wrong codes",
+  account_changed: "account changed meanwhile",
   unknown_account: "no such account",
   wrong_password: "wrong password",
   inactive_account: "deactivated account",
@@ -62,6 +67,7 @@ const BADGE_TONE: Record<string, string> = {
   platform_session_revoked: "pending",
   email_verification_failed: "pending",
   password_change_failed: "pending",
+  login_code_failed: "failed",
 };
 
 export default async function AdminSecurityPage({
@@ -104,6 +110,7 @@ export default async function AdminSecurityPage({
 
       <StatGrid>
         <StatTile label="Failed sign-ins (1 h)" value={summary.failedLogins.lastHour} detail={`${summary.failedLogins.last24h} in 24 h · ${summary.failedLogins.last7d} in 7 days`} />
+        <StatTile label="Wrong sign-in codes (1 h)" value={summary.failedLoginCodes.lastHour} detail={`${summary.failedLoginCodes.last24h} in 24 h · the password was right`} href="/admin/security?type=login_code_failed" attention={summary.failedLoginCodes.lastHour > 0} />
         <StatTile label="Super admin sign-ins (24 h)" value={summary.adminLogins24h} href="/admin/security?type=admin_login" />
         <StatTile label="Admin re-auth failures (24 h)" value={summary.adminReauthFailures24h} href="/admin/security?type=admin_reauth_failed" attention={summary.adminReauthFailures24h > 0} />
         <StatTile label="Targeted accounts (1 h)" value={summary.targetedAccounts.length} detail={`${TARGETED_ACCOUNT_THRESHOLD}+ failures each`} attention={summary.targetedAccounts.length > 0} />
