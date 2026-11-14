@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 
 /**
@@ -17,6 +18,7 @@ export default function AccountMenu({
   signedInName,
   signedIn,
   preview = false,
+  editable = false,
   className,
   panelClassName,
   linkClassName,
@@ -24,6 +26,8 @@ export default function AccountMenu({
   signedInName: string | null;
   signedIn: boolean;
   preview?: boolean;
+  /** Inside the website editor: links must not navigate. */
+  editable?: boolean;
   className: string;
   panelClassName: string;
   linkClassName: string;
@@ -62,13 +66,18 @@ export default function AccountMenu({
     </svg>
   );
 
+  // `Link` starts its navigation in its own click handler, before a parent's handler could cancel
+  // it, so the editor's "no navigation" rule has to be applied on the link itself. No prefetch:
+  // these pages are fetched only when a shopper opens them, as with plain links.
+  const preventNav = editable ? (event: React.MouseEvent) => event.preventDefault() : undefined;
+
   if (!signedIn) {
     return (
-      <a href="/account/login" className={`inline-flex h-10 items-center gap-2 rounded-md px-2 ${className}`}>
+      <Link href="/account/login" prefetch={false} onClick={preventNav} className={`inline-flex h-10 items-center gap-2 rounded-md px-2 ${className}`}>
         {icon}
         <span className="hidden text-sm font-medium lg:inline">Sign in</span>
         <span className="sr-only lg:hidden">Sign in to your account</span>
-      </a>
+      </Link>
     );
   }
 
@@ -102,9 +111,9 @@ export default function AccountMenu({
       </button>
       {open && (
         <div id={menuId} className={`absolute right-0 top-full z-50 mt-2 w-56 rounded-xl p-1.5 shadow-xl ring-1 ring-black/10 ${panelClassName}`}>
-          <a href="/account" className={`block rounded-lg px-3 py-2 text-sm ${linkClassName}`}>My account</a>
-          <a href="/account/orders" className={`block rounded-lg px-3 py-2 text-sm ${linkClassName}`}>Order history</a>
-          <a href="/account/profile" className={`block rounded-lg px-3 py-2 text-sm ${linkClassName}`}>Profile</a>
+          <Link href="/account" prefetch={false} onClick={preventNav} className={`block rounded-lg px-3 py-2 text-sm ${linkClassName}`}>My account</Link>
+          <Link href="/account/orders" prefetch={false} onClick={preventNav} className={`block rounded-lg px-3 py-2 text-sm ${linkClassName}`}>Order history</Link>
+          <Link href="/account/profile" prefetch={false} onClick={preventNav} className={`block rounded-lg px-3 py-2 text-sm ${linkClassName}`}>Profile</Link>
           <button type="button" onClick={() => void signOut()} disabled={signingOut} className={`block w-full rounded-lg px-3 py-2 text-left text-sm disabled:opacity-60 ${linkClassName}`}>
             {signingOut ? "Signing out…" : "Sign out"}
           </button>

@@ -136,6 +136,7 @@ export default function StoreHeader({
         signedIn={account.signedIn}
         signedInName={account.name}
         preview={preview}
+        editable={editable}
         className={`${actionClass} ${wordy} ${skin.focus}`}
         panelClassName={skin.panel}
         linkClassName={`${skin.menuLink} ${skin.focus}`}
