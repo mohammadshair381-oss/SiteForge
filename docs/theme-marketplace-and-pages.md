@@ -6,52 +6,52 @@ done before the change, then the design that was built on top of it.
 ## 1. Audit (before any change)
 
 ### Entitlements
-- **Authoritative source:** `lib/billing.ts` `getEntitlements(businessId)`:
+- **Authoritative source:** `backend/lib/billing.ts` `getEntitlements(businessId)`:
   the latest `Subscription` of the business, its populated `Plan`, and
   `isEntitlingSubscription` (active/trialing; paid plans only until
   `currentPeriodEnd`). Every limit (`assertCanAddProduct`, `assertCanPublish`,
   `assertCanAddStaff`, `assertCanAddCustomDomain`) and the AI allowance read
   from it. There is no second permission system.
-- **Plans:** `models/Plan.ts` `features` (product/staff limits, custom domain,
-  branding, AI requests). Seeded plans (`scripts/seed.ts`): `free` (0),
+- **Plans:** `backend/models/Plan.ts` `features` (product/staff limits, custom domain,
+  branding, AI requests). Seeded plans (`backend/scripts/seed.ts`): `free` (0),
   `starter` (19), `pro` (49). There is no plan called "Max"; `pro` is the top
   tier.
 - **Super Admin plan manager:** `POST /api/admin/plans` (create/update with
   zod schemas, audited in the same transaction via `runAuditedAdminAction`)
-  and `components/admin/AdminPanel.tsx` `PlanManager`.
+  and `frontend/components/admin/AdminPanel.tsx` `PlanManager`.
 - New businesses get the `free` plan in the creation transaction
   (`POST /api/businesses`), and defaulted to `themeId: "aurora"` (model default).
 
 ### Themes
-- Nine ids in `lib/constants.ts` `THEME_IDS` (append-only), metadata in
-  `lib/themes.ts`, design systems in `themes/skins/<id>.ts`, one renderer
+- Nine ids in `backend/lib/constants.ts` `THEME_IDS` (append-only), metadata in
+  `backend/lib/themes.ts`, design systems in `frontend/themes/skins/<id>.ts`, one renderer
   (`CommerceShell` and its shared variants).
 - **Every theme change goes through `PATCH /api/businesses/[id]`** (theme
-  page, website editor via `lib/editor-save.ts` and `HomeEditor`, setup brand
+  page, website editor via `backend/lib/editor-save.ts` and `HomeEditor`, setup brand
   step, legacy section editor) or `POST /api/businesses` (creation). No other
   code writes `themeId`. Neither route checked any theme permission.
 - Pickers: theme page (`ThemeEditor`, live preview with draft data), editor
   theme menus (`HomeEditor`, `VisualEditor`), setup brand step (`BrandStep`).
 
 ### Pages
-- `models/Page.ts`: title, slug (unique per business, reserved slugs refused
-  in `lib/validation.ts`), `sections` (draft) / `publishedSections`
+- `backend/models/Page.ts`: title, slug (unique per business, reserved slugs refused
+  in `backend/lib/validation.ts`), `sections` (draft) / `publishedSections`
   (snapshot), status, `isHome`, SEO title/description with a published
   snapshot, `version` for optimistic concurrency.
 - Routes: `GET/POST /api/businesses/[id]/pages`,
   `GET/PATCH/DELETE /api/businesses/[id]/pages/[pageId]` (publishing a page is
   `PATCH status: "published"`; store publish never publishes pages).
-- Sections (`lib/sections.ts`): hero, products, about, features, cta, footer,
+- Sections (`backend/lib/sections.ts`): hero, products, about, features, cta, footer,
   faq, testimonials, gallery, pricing, contact, newsletter, stats; strict zod
   schemas, safe links, media ownership checks.
-- **Homepage resolution (`lib/storefront-pages.ts`):** `/` renders the PUBLISHED
+- **Homepage resolution (`backend/lib/storefront-pages.ts`):** `/` renders the PUBLISHED
   `isHome` page (an empty published home page renders the commerce homepage).
   Until one exists (no Page documents, a draft Home, or no Home at all) `/`
   renders from the theme settings, which is the commerce homepage when they
   hold no sections. `/` is never a 404 on a public store, and drafts are never
   public. Page generation and proposals still add a published Home page that
   reproduces the current homepage. Without a published Home page the website
-  editor opens this same fallback (`selectEditorPage`, `lib/editor-mode.ts`),
+  editor opens this same fallback (`selectEditorPage`, `backend/lib/editor-mode.ts`),
   labelled "Store homepage" in the page menu; a draft Home page with sections stays in the page list.
 - A home page WITH sections replaces the commerce homepage ("classic
   homepage"), so generated defaults never give the home page sections.
@@ -59,11 +59,11 @@ done before the change, then the design that was built on top of it.
   public): items reference page ids; the public view keeps only PUBLISHED
   pages, so draft pages in the draft navigation never show publicly. The
   navigation builder only offered published pages.
-- SEO (`lib/seo.ts`): per-page metadata from the published SEO snapshot,
+- SEO (`backend/lib/seo.ts`): per-page metadata from the published SEO snapshot,
   canonical `/` for the home page, sitemap of published pages only.
 
 ### Rendering of non-home pages
-- `components/storefront/SectionRenderer.tsx` (client) renders page sections
+- `frontend/components/storefront/SectionRenderer.tsx` (client) renders page sections
   inside the theme's header and footer. Before this change it had ONE layout
   for every theme plus a small palette map, its own plain product cards, and
   a `font-sans|serif|mono` class that overrode the theme typography.
@@ -81,7 +81,7 @@ done before the change, then the design that was built on top of it.
 
 ## 2. Plan-based theme access
 
-- **Default distribution** (`lib/theme-tiers.ts`, the only place it is
+- **Default distribution** (`backend/lib/theme-tiers.ts`, the only place it is
   written down): Free = Bistro, Market, Studio; Starter = Free + Aurora,
   Launch, Harvest; Max = all nine (Atelier, Volt, Forma added).
 - **Which list applies:** `planThemes(plan)` uses `Plan.features.themes` when
@@ -113,7 +113,7 @@ done before the change, then the design that was built on top of it.
 
 ## 3. Theme marketplace
 
-`/dashboard/businesses/[id]/theme` (`components/dashboard/ThemeMarketplace.tsx`):
+`/dashboard/businesses/[id]/theme` (`frontend/components/dashboard/ThemeMarketplace.tsx`):
 all nine themes are visible on every plan. Each card shows the marketplace
 thumbnail, name, identity, best-fit categories, visual and motion notes, and a
 badge: "Current", "Included" or "<Plan> plan". Filters: All / Included /
@@ -125,15 +125,15 @@ REAL storefront renderer (`ThemeRenderer`/`CommerceShell` through the existing
 preview frame) with the store's draft data in that theme, at Desktop, Tablet
 or Mobile width, for the homepage or any content page. A store with no
 products can switch on clearly-labelled sample products
-(`lib/theme-preview-samples.ts`), used only in the dialog. Preview never
+(`backend/lib/theme-preview-samples.ts`), used only in the dialog. Preview never
 saves, publishes or changes the theme. **Use in draft** puts the theme in the design draft and keeps the owner's other
 design choices. The live store changes only when the owner publishes it, from this
 page, Design or Publish, and that publish needs a plan that includes the theme.
 
 ## 4. Default pages
 
-`lib/page-presets.ts` (pure, deterministic) plans the pages;
-`lib/page-generation.ts` loads the real data and creates them.
+`backend/lib/page-presets.ts` (pure, deterministic) plans the pages;
+`backend/lib/page-generation.ts` loads the real data and creates them.
 
 **When:** after a business is created (best effort, outside the creation
 transaction; a failure is logged without details and never fails the
@@ -218,7 +218,7 @@ type renders in every theme, so nothing becomes incompatible.
 ## 9. Theme-wide rendering
 
 `SectionRenderer` now renders every content page through the theme's skin
-(`themes/skins/<id>.ts`): container, typography and colour tokens, cards,
+(`frontend/themes/skins/<id>.ts`): container, typography and colour tokens, cards,
 buttons, hero composition (overlay, split or type-led), product grid density
 and the shared `ProductCard`, FAQ accordion style, footer. A page without a
 hero gets exactly one `h1` (its first titled section). Product detail,
@@ -232,7 +232,7 @@ published"), so generated pages can be arranged before publishing; the public
 navigation still shows only published pages. Generated pages carry a title,
 SEO title and SEO description from the owner's data; drafts are not in the
 sitemap and 404 publicly; canonical URLs, breadcrumbs and structured data are
-unchanged (`lib/seo.ts`).
+unchanged (`backend/lib/seo.ts`).
 
 ## 11. Security
 
@@ -245,7 +245,7 @@ unchanged (`lib/seo.ts`).
 
 ## 12. Website history, page operations and redirects
 
-Version history (`models/WebsiteRevision.ts`, `lib/website-revisions.ts`): one
+Version history (`backend/models/WebsiteRevision.ts`, `backend/lib/website-revisions.ts`): one
 scoped collection holding copies of pages, the homepage draft, the design and the
 menus. A copy is kept when something is published, at most every 30 minutes while
 a draft is being saved (`checkpoint`), before a restore, before going back to the
@@ -265,7 +265,7 @@ db.websiterevisions.createIndex({ business: 1, target: 1, targetId: 1, createdAt
 ```
 
 Page operations: duplicate (`pages/[pageId]/duplicate`, always a new draft),
-go back to published (`pages/[pageId]/revert`), templates (`lib/page-templates.ts`:
+go back to published (`pages/[pageId]/revert`), templates (`backend/lib/page-templates.ts`:
 facts come from the business, unknowns are `[[placeholders]]`), unpublish
 (`PATCH status: draft`). Changing a published page's address keeps the old one in
 `Page.previousSlugs`, and the store answers it with a permanent redirect

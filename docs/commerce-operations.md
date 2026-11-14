@@ -11,9 +11,9 @@ guarantees each one gives, and the database operations they need.
   a simple product and behaves exactly as before.
 - Variants are **archived, never deleted** (orders and stock history point to
   them). Edits use targeted `$set`s that never touch stock; new variants are
-  `$push`ed with their initial stock (`lib/product-variant-service.ts`).
+  `$push`ed with their initial stock (`backend/lib/product-variant-service.ts`).
 - `Product.stock` of a variant product is the **sum** of its variants' stock,
-  changed in the same atomic update as the variant (`lib/inventory.ts`).
+  changed in the same atomic update as the variant (`backend/lib/inventory.ts`).
 - A simple product can get variants only while no unpaid order holds its
   stock (`pending_orders`); a variant product cannot drop its options.
 - Cart lines and order items record the exact variant (`variant`,
@@ -25,7 +25,7 @@ guarantees each one gives, and the database operations they need.
 
 ## Inventory
 
-All stock changes go through `lib/inventory.ts` and record an
+All stock changes go through `backend/lib/inventory.ts` and record an
 `InventoryMovement` in the **same transaction**:
 
 | Change | Function | Reason |
@@ -33,7 +33,7 @@ All stock changes go through `lib/inventory.ts` and record an
 | Checkout reservation (COD, online, arrange-with-store) | `reserveStock` | `order_reserved` |
 | Cancellation / expiry of an unpaid order | `restoreStock` | `order_released` |
 | Owner/staff adjustment | `adjustStock` | `restock`, `damage`, `correction`, `adjustment` |
-| Full refund with items returned | `lib/payments/order-refunds.ts` | `order_refunded` |
+| Full refund with items returned | `backend/lib/payments/order-refunds.ts` | `order_refunded` |
 | New product / new variant | product routes, variant service | `initial` |
 | Simple product converted to variants | variant service | `variants_created` |
 
@@ -52,7 +52,7 @@ All stock changes go through `lib/inventory.ts` and record an
 
 ## Categories
 
-- `ProductCategory` (business-scoped; `models/Category.ts` remains the
+- `ProductCategory` (business-scoped; `backend/models/Category.ts` remains the
   platform's business types). Name, URL slug, description, image, order,
   active flag. Products are linked by the existing `Product.category` text
   (case-insensitive): **no data migration**. Existing category texts become
@@ -102,7 +102,7 @@ All stock changes go through `lib/inventory.ts` and record an
   include it, and whether shipping is taxed. SiteForge calculates and shows tax; it
   does not file or remit it. Per-product and per-region rates are not supported.
 - `total = subtotal - discount + shipping + tax` (tax on top) or without the tax
-  (tax inside the prices), computed only by `priceOrder` in `lib/checkout-pricing.ts`.
+  (tax inside the prices), computed only by `priceOrder` in `backend/lib/checkout-pricing.ts`.
   The cart preview and checkout both call it; online payment uses `order.total`.
   The order keeps its tax, label and area as they were when placed.
 - The delivery address is validated server-side, stored on the order, shown
@@ -153,7 +153,7 @@ the server, and the idempotency key and cart consumption stop duplicates. Nobody
 ## Carts
 
 - A guest's cart is found by the httpOnly `cart-token` cookie, now kept for 30 days and renewed on use. Every query filters
-  by the Host-resolved store. `lib/cart/shopper-cart.ts` is the only place that decides whose cart a request means.
+  by the Host-resolved store. `backend/lib/cart/shopper-cart.ts` is the only place that decides whose cart a request means.
 - With the index in `docs/database-preparation.md`, a signed-in customer has one cart per store. A guest cart becomes theirs,
   or merges into their existing one, on their first request after signing in. A product and variant appear once, quantities
   are limited to what is in stock, unavailable lines are dropped and prices become current, in one transaction. A cart tied to
@@ -181,7 +181,7 @@ production traffic:
 For coupons, categories and reviews, correctness does not depend on the unique
 indexes (writes are serialised in transactions), but they are the backstop and
 keep lookups fast. The `orderrefunds` one is different: Razorpay refunds stay off
-until it exists (`order_refunds`, `lib/required-indexes.ts`; see
+until it exists (`order_refunds`, `backend/lib/required-indexes.ts`; see
 `docs/database-preparation.md`). Manual refunds do not need it.
 
 ## Known limitations
@@ -210,7 +210,7 @@ CSV export (`manage/orders/export`) uses the same filters, is capped at 5,000 or
 never includes team notes, and neutralises cells that a spreadsheet would run as
 formulas. Each order opens to its payment attempts, refunds and a private team note.
 
-Order emails (`lib/orders/notifications.ts`): the shopper hears when an order is
+Order emails (`backend/lib/orders/notifications.ts`): the shopper hears when an order is
 placed, paid, shipped, delivered, cancelled or refunded, and the store when an order
 is placed or paid online. They are sent after the response and best-effort, so a mail
 failure never changes an order. Not sent when reservations expire on their own.

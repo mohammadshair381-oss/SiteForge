@@ -17,7 +17,7 @@ access.
 | `/admin/plans` | `GET/POST/PATCH /api/admin/plans` (unchanged, audited) | Plans |
 | `/admin/audit` (filters: action, target, actor, dates) | `GET /api/admin/audit-logs` (+ optional strict filters) | No |
 
-Read-only data comes from `lib/admin/control-center.ts`.
+Read-only data comes from `backend/lib/admin/control-center.ts`.
 
 `/admin/ai-usage` shows stored AI request counters (per business, plan, kind of
 request and month) and businesses near their allowance: read-only, no prompts,
@@ -50,4 +50,4 @@ generated text or estimated costs. See `docs/ai-website-builder-plan.md`.
 - Live dispute synchronisation has not been exercised against Razorpay.
 - Security events do not record rate-limited attempts or invalid session
   signatures (see `docs/security-monitoring.md`).
-- The very first super admin is still created only by `scripts/create-admin.ts`.
+- The very first super admin is still created only by `backend/scripts/create-admin.ts`.

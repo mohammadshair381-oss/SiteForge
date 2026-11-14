@@ -21,7 +21,7 @@ exercised it.
 | Payment disputes (Razorpay) | Done | `docs/payments-architecture.md`, "Disputes" |
 | Super Admin control center, user management, audit log | Done | `docs/admin-control-center.md` |
 | Security monitoring (platform + storefront sign-ins, password resets, revoked customer sessions) | Done | `docs/security-monitoring.md` |
-| Owner insights | Done | `lib/business-insights.ts` |
+| Owner insights | Done | `backend/lib/business-insights.ts` |
 | Billing visible to the owner only (API + page) | Done | `app/api/businesses/[id]/subscription` |
 | Favicon (platform and stores) | Done | `app/icon.svg`, `app/favicon.ico` |
 | AI provider safety (M0: kill switch off, header key, origin, verified email, limits, error hygiene) | Done | `docs/ai-website-builder-plan.md` |

@@ -14,10 +14,10 @@ account, `docs/payments-architecture.md`).
 
 | Area | Where | Behaviour |
 |---|---|---|
-| Plans | `models/Plan.ts`; admin `/admin/plans`, `api/admin/plans` | key, name, price, currency, `month`/`year`, `productLimit`, `staffLimit`, `customDomain`, `removeBranding`, `active`, `sort`. Create/update/activate/deactivate are super-admin only and audited. |
-| Subscriptions | `models/Subscription.ts` | One current document per business (the newest by `createdAt` is authoritative): `plan`, `status` (`incomplete`/`trialing`/`active`/`past_due`/`canceled`), `provider`, `currentPeriodStart/End`. |
-| Entitlements | `lib/billing.ts` `getEntitlements` | Active only for `active`/`trialing`; a paid plan also needs `currentPeriodEnd` in the future (free plans never expire). Read on every check, never cached. |
-| Enforcement (server) | `assertCanAddProduct`, `assertCanAddStaff`, `assertCanPublish`, `assertCanAddCustomDomain`; storefront and commerce gates (`lib/tenant.ts`) | Limits and the "active subscription" requirement are enforced server-side; a lapsed plan takes the storefront and checkout offline. |
+| Plans | `backend/models/Plan.ts`; admin `/admin/plans`, `api/admin/plans` | key, name, price, currency, `month`/`year`, `productLimit`, `staffLimit`, `customDomain`, `removeBranding`, `active`, `sort`. Create/update/activate/deactivate are super-admin only and audited. |
+| Subscriptions | `backend/models/Subscription.ts` | One current document per business (the newest by `createdAt` is authoritative): `plan`, `status` (`incomplete`/`trialing`/`active`/`past_due`/`canceled`), `provider`, `currentPeriodStart/End`. |
+| Entitlements | `backend/lib/billing.ts` `getEntitlements` | Active only for `active`/`trialing`; a paid plan also needs `currentPeriodEnd` in the future (free plans never expire). Read on every check, never cached. |
+| Enforcement (server) | `assertCanAddProduct`, `assertCanAddStaff`, `assertCanPublish`, `assertCanAddCustomDomain`; storefront and commerce gates (`backend/lib/tenant.ts`) | Limits and the "active subscription" requirement are enforced server-side; a lapsed plan takes the storefront and checkout offline. |
 | Checkout | `POST /api/businesses/[id]/subscription` | Owner + verified email. Only `PAYMENT_PROVIDER=manual`; any other value returns 501. Paid plans additionally require `ALLOW_MANUAL_BILLING` in production. Writes a `succeeded` `Payment` with `provider: "manual"` for paid plans (sandbox record). |
 | Webhook | `POST /api/webhooks/payments` | Generic contract: HMAC-SHA256 of the raw body (`x-signature`, `PAYMENT_WEBHOOK_SECRET`); `payment.succeeded` / `payment.failed`; dedupe on the unique `Payment.providerEventId`; one transaction; amount and currency must equal the plan; success activates and sets the period; failure marks paid plans `past_due`; unknown events are acknowledged. |
 | Admin visibility | `/admin`, `/admin/payments`, `/admin/businesses/[id]` | Subscription status counts, manual vs provider-recorded money kept apart, past-due alert, "published without an active plan" alert. |
@@ -54,7 +54,7 @@ account, `docs/payments-architecture.md`).
 
 The provider-independent architecture, integration boundaries and the tested
 lifecycle reducer are in `docs/subscription-billing-architecture.md` and
-`lib/billing-lifecycle.ts`.
+`backend/lib/billing-lifecycle.ts`.
 
 Decisions needed first (business, not code): which provider (for example
 Razorpay Subscriptions for INR, or a global provider for USD); the legal
@@ -82,7 +82,7 @@ Then, for any provider:
   the provider's event id must be stored for every applied event.
 - **Signature**: provider-specific scheme with a replay window; secrets in the
   secret manager only.
-- **Entitlements**: keep `lib/billing.ts` as the single decision point; add the
+- **Entitlements**: keep `backend/lib/billing.ts` as the single decision point; add the
   grace period there; never grant access from the client.
 - **Downgrades**: define policy for usage above the new limit (block new items,
   read-only, or require cleanup before the change).

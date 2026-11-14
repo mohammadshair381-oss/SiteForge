@@ -4,7 +4,7 @@
 
 The dashboard planner is a manual planning and review workflow. It prepares a
 whole-website plan for owner or manager review; it does not generate AI content.
-`lib/ai-planning/plan.ts` defines its validated plan contract and reuses the
+`backend/lib/ai-planning/plan.ts` defines its validated plan contract and reuses the
 existing theme IDs, page slug rules, and CMS section schemas. The 50-page
 maximum bounds a plan payload; it is not a subscription entitlement.
 
@@ -35,7 +35,7 @@ external provider.
 
 ## Provider-neutral editing actions
 
-`lib/ai-planning/actions.ts` defines a strict, provider-independent action
+`backend/lib/ai-planning/actions.ts` defines a strict, provider-independent action
 contract. It is separate from the whole-website `WebsitePlan` contract and
 reuses the current section and page-slug validation schemas. The initial
 allowlist supports:
@@ -75,7 +75,7 @@ The contract currently has no product-reference action.
 
 ## Deterministic engine and boundaries
 
-`lib/ai-planning/editing-engine.ts` applies validated actions in order to a
+`backend/lib/ai-planning/editing-engine.ts` applies validated actions in order to a
 cloned in-memory context and returns the proposed draft, ordered change list,
 and summary counts. It revalidates runtime inputs and checks targets, draft
 status, expected versions, page slugs, section identifiers, limits, media
@@ -93,7 +93,7 @@ again in the write transaction.
 
 ## Provider-neutral change proposals and review
 
-`lib/ai-planning/proposal.ts` prepares a review-only proposal from a validated
+`backend/lib/ai-planning/proposal.ts` prepares a review-only proposal from a validated
 editing context and candidate actions. The caller supplies a bounded proposal
 ID and concise summary; actions are parsed through the existing strict action
 schema, then passed to the deterministic editing engine. The resulting proposal
@@ -131,7 +131,7 @@ alone must never bypass these checks.
 
 ## Server-side website context
 
-`lib/ai-planning/context.ts` exports
+`backend/lib/ai-planning/context.ts` exports
 `loadWebsiteEditingContext(businessId, pageIds?)`. It requires an authenticated
 owner or manager through `requireBusinessRole` before loading business data.
 When `pageIds` is supplied, the loader returns only those pages and verifies
@@ -186,14 +186,14 @@ plans or `editingActionsSchema` for editing actions, and must not expose
 credentials to browser code.
 ## Gemini API integration
 
-`lib/ai-planning/provider.ts` and the AI builder use the server-side Gemini model, but only when `AI_PROVIDER_ENABLED=true` (kill switch, default off; `isAiProviderEnabled()` in `lib/env.ts`), `GEMINI_API_KEY` is set and `GEMINI_MODEL` (optional) is valid. A key alone never enables it. Google Gemini is the owner-approved provider; each business's owner must also consent, and production stays off until the activation requirements in `docs/ai-website-builder-plan.md` are met.
+`backend/lib/ai-planning/provider.ts` and the AI builder use the server-side Gemini model, but only when `AI_PROVIDER_ENABLED=true` (kill switch, default off; `isAiProviderEnabled()` in `backend/lib/env.ts`), `GEMINI_API_KEY` is set and `GEMINI_MODEL` (optional) is valid. A key alone never enables it. Google Gemini is the owner-approved provider; each business's owner must also consent, and production stays off until the activation requirements in `docs/ai-website-builder-plan.md` are met.
 
 - **Model ID**: `GEMINI_MODEL`, default `gemini-3.6-flash` (official model docs: https://ai.google.dev/gemini-api/docs/models/gemini-3.6-flash). Documented as a stable, generally available model; see the free-tier note below for eligibility. An invalid value (not `gemini-` plus letters, digits, dots and hyphens) disables AI with `503 provider_not_configured`.
-- **Endpoint**: `POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent`. The key is sent ONLY in the `x-goog-api-key` header, never in the URL (URLs reach proxy and server logs). The call lives in `lib/ai-planning/gemini-http.ts`, shared by every AI feature.
+- **Endpoint**: `POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent`. The key is sent ONLY in the `x-goog-api-key` header, never in the URL (URLs reach proxy and server logs). The call lives in `backend/lib/ai-planning/gemini-http.ts`, shared by every AI feature.
 - **Request body**: `{ systemInstruction?, contents: [{ role: "user", parts: [{ text: ... }] }], generationConfig: { temperature, maxOutputTokens, topP, topK, responseMimeType: "application/json" } }`.
 - **Response parsing**: Joins the candidate's non-thought text parts, parses JSON (raw, fenced or embedded) and validates it with the task's schema (`websitePlanSchema`, the storefront change-set schema, or the product-copy schema).
 - **Timeout**: `AI_PROVIDER_TIMEOUT_MS` (default 30 seconds, 1 to 120000 ms) for the whole exchange, including reading the body (AbortController).
-- **Data check**: every request passes `assertProviderPayloadSafe` (`lib/ai-builder/sanitize.ts`) before it is sent; personal or secret-looking text is refused with `422 unsafe_content`.
+- **Data check**: every request passes `assertProviderPayloadSafe` (`backend/lib/ai-builder/sanitize.ts`) before it is sent; personal or secret-looking text is refused with `422 unsafe_content`.
 - **Retries**: `executeAiTask` may try once more after a temporary or connection failure (`docs/ai-website-builder-plan.md`, "Provider layer"). This module makes one request per call.
 - **Fail-safe**: Returns `null` provider (and `PlanningProviderUnavailableError` when invoked) if `GEMINI_API_KEY` is missing; no paid fallback.
 - **Free tier**: `gemini-3.6-flash` is documented as free-tier eligible. Eligibility and quotas are granted per project and are controlled by Google, so they are not guaranteed and remain unverified for SiteForge's key until a controlled live request succeeds. Google's terms for unpaid usage may allow submitted content to be used to improve its products: confirm the data terms of the production key before activation (activation requirement 2).

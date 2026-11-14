@@ -31,7 +31,7 @@
  *     one is minted in middleware.
  *   - `style-src` keeps `'unsafe-inline'` because themes render user theme
  *     colors through React inline `style={{ ... }}` attributes
- *     (themes/*.tsx, app/store/product/[slug]/page.tsx, ThemeEditor), and React
+ *     (frontend/themes/*.tsx, app/store/product/[slug]/page.tsx, ThemeEditor), and React
  *     never attaches a nonce to a `style` attribute.
  *
  * Everything else is deliberately strict. The app has no external script,
@@ -54,7 +54,7 @@ export function buildSecurityHeaders(nodeEnv = String(process.env.NODE_ENV ?? ""
 
   // `img-src` allows `https:` because product images and business logos are
   // owner-supplied absolute URLs rendered with plain `<img>` tags
-  // (themes/*.tsx, `app/store/product/[slug]/page.tsx`, ProductThumb). They are
+  // (frontend/themes/*.tsx, `app/store/product/[slug]/page.tsx`, ProductThumb). They are
   // not proxied through `/_next/image`, so there is no allowlist to enforce
   // here beyond the protocol. `http:` is intentionally excluded: storefronts
   // are served over HTTPS and mixed-content image loads are blocked by the
@@ -142,10 +142,10 @@ const nextConfig = {
     // Verified while inspecting current image usage: `next/image` is NOT used
     // anywhere in this repository. Every product image and business logo is
     // rendered with a plain `<img>` tag
-    //   - themes/AuroraTheme.tsx, themes/MarketTheme.tsx,
-    //     themes/BistroTheme.tsx, themes/StudioTheme.tsx
+    //   - frontend/themes/AuroraTheme.tsx, frontend/themes/MarketTheme.tsx,
+    //     frontend/themes/BistroTheme.tsx, frontend/themes/StudioTheme.tsx
     //   - app/store/product/[slug]/page.tsx
-    //   - components/dashboard/ProductThumb.tsx
+    //   - frontend/components/dashboard/ProductThumb.tsx
     // and there is no `public/` directory with image assets. So
     // `images.remotePatterns` currently grants access to zero legitimate
     // hosts, and the smallest justified allowlist is an empty list.

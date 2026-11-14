@@ -2,7 +2,7 @@
 
 The look and feel of the SiteForge platform: marketing site, authentication,
 dashboard, website builder and Super Admin. **Storefront themes are not part of
-it:** each theme keeps its own design (`themes/skins/<id>.ts`).
+it:** each theme keeps its own design (`frontend/themes/skins/<id>.ts`).
 
 ## Direction
 
@@ -51,7 +51,7 @@ or an error.
 
 ## Components
 
-Import from `components/ui/`. They work in server and client components, unless
+Import from `frontend/components/ui/`. They work in server and client components, unless
 noted.
 
 - `Button.tsx`: `Button`, `ButtonLink`, `buttonClass({ variant, size, block, className })`,

@@ -23,7 +23,7 @@ Then use a URI ending in `?replicaSet=rs0`, as `.env.example` shows.
 ## Automatic index policy
 
 Starting SiteForge does not create collections or indexes on a persistent database, and nothing at runtime does either.
-`automaticIndexesAllowed` (`lib/db.ts`) decides, and there is deliberately no setting to change it:
+`automaticIndexesAllowed` (`backend/lib/db.ts`) decides, and there is deliberately no setting to change it:
 
 | Database | Automatic creation |
 |---|---|
@@ -43,7 +43,7 @@ With automatic creation off:
   needs no restart. A database that cannot answer proves nothing and is not treated as missing.
 - **The rate limiter's unique index is required too.** Without it, every rate-limited route answers
   `503 rate_limit_unavailable`, sign-in included.
-- **Features gated by `lib/required-indexes.ts` stay off** until their indexes exist, as before.
+- **Features gated by `backend/lib/required-indexes.ts` stay off** until their indexes exist, as before.
 - **Other indexes only affect speed or cleanup.** Without them things work, more slowly, and TTL cleanup does not happen.
 - **Collections are created by their first write, or by creating an index.** A first write inside a transaction needs
   MongoDB 4.4 or later, so on an older server create the collections first.
@@ -54,7 +54,7 @@ like any other. Every step below needs its own approval.
 ## Core indexes
 
 **Required before the first start on a persistent database.** Declared in the models and listed in
-`lib/core-indexes.ts`, which `dbConnect` checks. If a build fails on duplicates, stop and review them: never delete data
+`backend/lib/core-indexes.ts`, which `dbConnect` checks. If a build fails on duplicates, stop and review them: never delete data
 to make an index fit.
 
 ```js
@@ -142,7 +142,7 @@ db.orders.createIndex({ status: 1, inventoryState: 1, reservationExpiresAt: 1, _
 
 ## Cart: the duplicate `{ business: 1 }` declaration (fixed in code)
 
-`models/Cart.ts` declared the same index twice, which caused Mongoose's "Duplicate
+`backend/models/Cart.ts` declared the same index twice, which caused Mongoose's "Duplicate
 schema index" warning. The second declaration has been removed. The set of declared
 indexes is unchanged, so no database change follows from it, and a test `createIndexes`
 on a throwaway server produced a single `business_1`.
@@ -175,7 +175,7 @@ Recommended configuration, not applied:
 1. Run `db.domainverifications.getIndexes()` and confirm `domain_verification_1`
    exists, is unique, and has the partial filter. If it is missing, duplicates may
    exist: stop and review before creating it.
-2. Remove `index: true` from `domain` in `models/DomainVerification.ts`. This only
+2. Remove `index: true` from `domain` in `backend/models/DomainVerification.ts`. This only
    stops the plain index being declared; it does not remove it from a database.
 3. Later, as an approved operation: `db.domainverifications.dropIndex("domain_1")`.
 
@@ -192,13 +192,13 @@ duplicates. Review them with `$indexStats` before changing anything.
 
 ## Indexes for models with `autoIndex` off
 
-Website history (`models/WebsiteRevision.ts`):
+Website history (`backend/models/WebsiteRevision.ts`):
 
 ```js
 db.websiterevisions.createIndex({ business: 1, target: 1, targetId: 1, createdAt: -1 })
 ```
 
-Order refunds (`models/OrderRefund.ts`) and coupon redemptions:
+Order refunds (`backend/models/OrderRefund.ts`) and coupon redemptions:
 
 ```js
 db.orderrefunds.createIndex({ business: 1, order: 1, createdAt: -1 })
@@ -213,8 +213,8 @@ Razorpay's dashboard answers 503, so that Razorpay can deliver it again. Refunds
 refunds have no provider id, so neither needs it. It must have exactly this filter: a full unique index would refuse
 every refund that has no provider id yet. Create it before enabling online payments.
 
-Team invitations (`models/TeamInvitation.ts`), billing events
-(`models/BillingEvent.ts`) and coupon identity keys:
+Team invitations (`backend/models/TeamInvitation.ts`), billing events
+(`backend/models/BillingEvent.ts`) and coupon identity keys:
 
 ```js
 db.teaminvitations.createIndex({ tokenHash: 1 }, { unique: true })
@@ -231,7 +231,7 @@ db.couponredemptions.createIndex({ coupon: 1, phoneKey: 1, status: 1 })
 db.couponredemptions.createIndex({ coupon: 1, addressKey: 1, status: 1 })
 ```
 
-`lib/required-indexes.ts` looks for the unique indexes these features rest on in the database
+`backend/lib/required-indexes.ts` looks for the unique indexes these features rest on in the database
 itself, since a schema declaring an index says nothing about whether it exists. The feature stays off
 until they do: team invitations (`teaminvitations`), subscription billing (`billingevents`,
 `billingadjustments`), custom domains (`businesses.customDomain`, `domainverifications.domain`), carts saved to customer
@@ -258,7 +258,7 @@ their browser, as a guest's does:
 db.carts.createIndex({ business: 1, customer: 1 }, { unique: true, partialFilterExpression: { customer: { $exists: true } } })
 ```
 
-It is deliberately not declared in `models/Cart.ts`, and neither are these optional ones, which only affect speed.
+It is deliberately not declared in `backend/models/Cart.ts`, and neither are these optional ones, which only affect speed.
 That model has `autoIndex` on for local databases, so declaring them there would also change what local development and
 the tests build:
 
@@ -274,7 +274,7 @@ live invitation per person and one holder per link. The `teaminvitations` collec
 is not created automatically (`autoCreate` off), and accepting an invitation runs in a
 transaction, so create the collection along with its indexes.
 
-The notification centre (`models/Notification.ts`, `autoIndex` and `autoCreate` off) stays off until the unique
+The notification centre (`backend/models/Notification.ts`, `autoIndex` and `autoCreate` off) stays off until the unique
 index exists, since it is what stops an event being announced twice. The second only affects speed:
 
 ```js
@@ -285,7 +285,7 @@ db.notifications.createIndex({ business: 1, occurredAt: -1 })
 `PlatformSettings` needs no index: it is one document, read by `_id`. Its collection is created by the first save,
 inside a transaction, which needs MongoDB 4.4 or later. On an older server, run `db.createCollection("platformsettings")` first.
 
-Draft preview links (`models/PreviewLink.ts`):
+Draft preview links (`backend/models/PreviewLink.ts`):
 
 ```js
 db.previewlinks.createIndex({ tokenHash: 1 }, { unique: true })

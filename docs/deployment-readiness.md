@@ -15,7 +15,7 @@ present in `.env.example` (lines 115 and 120). The audit's key scan used
 
 ## 1. S3-compatible storage for Cloudflare R2 — **Done**
 
-- `lib/s3.ts`: `buildS3ClientConfig()` / `resolveS3Bucket()` / `getS3PublicBaseUrl()`
+- `backend/lib/s3.ts`: `buildS3ClientConfig()` / `resolveS3Bucket()` / `getS3PublicBaseUrl()`
   read `S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`,
   `S3_BUCKET`, `S3_PUBLIC_URL`, with fallback to the legacy `AWS_*` names.
 - `S3_ENDPOINT` (optional) must be an `https` origin without credentials, path,
@@ -25,9 +25,9 @@ present in `.env.example` (lines 115 and 120). The audit's key scan used
   only outside production and never when `VERCEL` is set, so Vercel-injected
   values cannot hide missing storage config (production needs `S3_*`).
   `AWS_S3_BUCKET` / `AWS_S3_PUBLIC_URL` fall back everywhere.
-- Logs name variables only. `lib/media-references.ts` ownership checks read the
+- Logs name variables only. `backend/lib/media-references.ts` ownership checks read the
   same public-URL setting via `configuredMediaPublicBaseUrl()`.
-- Not changed (paused AI work): `lib/ai-planning/context.ts` still reads only
+- Not changed (paused AI work): `backend/lib/ai-planning/context.ts` still reads only
   `AWS_S3_PUBLIC_URL`; set it alongside `S3_PUBLIC_URL` if the AI planner is
   ever re-enabled.
 - Tests: `tests/unit/s3-config.test.ts`, `tests/unit/media.test.ts`,
@@ -63,9 +63,9 @@ tests in `tests/integration/media-references.test.ts` / `media.test.ts`).
 
 ## 3. MongoDB connection pool — **Done**
 
-- `lib/db.ts#buildMongooseOptions`: `bufferCommands: false` (unchanged),
+- `backend/lib/db.ts#buildMongooseOptions`: `bufferCommands: false` (unchanged),
   `maxPoolSize` default 10 (`MONGODB_MAX_POOL_SIZE`, validated 1-50 in
-  `lib/env.ts`), `maxIdleTimeMS: 60000`.
+  `backend/lib/env.ts`), `maxIdleTimeMS: 60000`.
 - Automatic index and collection creation is off in production and for any
   database reached over a network. The core unique indexes must exist before
   the first start, and the app refuses to work without them. See
@@ -102,7 +102,7 @@ files, no contents) that no source file is ignored.
 - `middleware.ts` passes `/robots.txt` and `/sitemap.xml` through on every host
   (previously rewritten to `/store/...` and 404 on storefronts).
 - `app/robots.ts`, `app/sitemap.ts` (request-dependent via `headers()` plus
-  `dynamic = "force-dynamic"`) delegate to `lib/seo.ts`:
+  `dynamic = "force-dynamic"`) delegate to `backend/lib/seo.ts`:
   - platform host: platform policy, sitemap `/`, `/register`, `/terms`, `/privacy`;
   - storefront host: only when `getPublicStorefront(host)` passes (published,
     not suspended, entitled, custom domain verified/fresh). Sitemap = published
@@ -117,8 +117,8 @@ files, no contents) that no source file is ignored.
   provisioned on the hosting platform.
 - Tests: `tests/unit/seo-routes.test.ts`, `tests/integration/seo-routes.test.ts`.
 - **Fixed:** published-page draft leak. The renderer and the sitemap share
-  `resolvePublishedPageSections` (`lib/sections.ts`) via
-  `lib/storefront-pages.ts`: the published snapshot is authoritative whenever
+  `resolvePublishedPageSections` (`backend/lib/sections.ts`) via
+  `backend/lib/storefront-pages.ts`: the published snapshot is authoritative whenever
   the `publishedSections` field exists (even empty, which renders the theme
   default); only records without the field (written before snapshots existed)
   render their stored sections. Tests: `tests/unit/published-sections.test.ts`,

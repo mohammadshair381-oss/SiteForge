@@ -107,10 +107,10 @@ their own unpaid orders from their account.
 
 `Customers` tab (owners and managers; staff excluded, same as Orders). API:
 `GET /api/businesses/[id]/manage/customers[?q=&page=&limit=]` and
-`GET /api/businesses/[id]/manage/customers/[customerId]`. Logic: `lib/customers.ts`.
+`GET /api/businesses/[id]/manage/customers/[customerId]`. Logic: `backend/lib/customers.ts`.
 
 - **Source of truth:** existing orders. No customer records are written;
-  `models/Customer.ts` stays unused (no checkout change, no backfill).
+  `backend/models/Customer.ts` stays unused (no checkout change, no backfill).
 - **Identity:** within one business, orders with the same `customerEmail`
   (ordinary whitespace trimmed, ASCII letters lower-cased) are one customer.
   Nothing else is merged (no Gmail dot/plus folding, no Unicode case folding,
@@ -170,7 +170,7 @@ Products have a stock field in the dashboard; edits are compare-and-set
 3. Order payments (Razorpay, implemented with mocks): verify end to end against
    Razorpay test mode (`docs/payments-architecture.md`, "Enabling it"), create
    the two documented indexes, set `PAYMENT_CREDENTIALS_KEY`. Order payments use
-   `models/OrderPayment.ts`, not `Payment`.
+   `backend/models/OrderPayment.ts`, not `Payment`.
 4. Reconciliation reports and tax invoices. Order emails and provider refunds
    exist (`docs/commerce-operations.md`, `docs/payments-architecture.md`); both need
    an email provider or Razorpay test mode to be exercised for real.

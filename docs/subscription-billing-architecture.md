@@ -10,7 +10,7 @@ the end for what is implemented and what is not yet proven. Background:
 The provider is the source of truth for money; SiteForge is the source of
 truth for access. Access changes ONLY from verified provider facts, through one
 pure reducer, persisted with idempotent conditional writes. Entitlements are
-always decided on the server by `lib/billing.ts`.
+always decided on the server by `backend/lib/billing.ts`.
 
 ## Components and boundaries
 
@@ -28,7 +28,7 @@ always decided on the server by `lib/billing.ts`.
                                                         (D) reduceSubscription (pure)
                                                         (E) Persist: event id unique,
                                                         conditional update, 1 txn
-                                                        (F) lib/billing.ts decides access
+                                                        (F) backend/lib/billing.ts decides access
  Cancel / change plan ─────────────────────────────────▶ (G) Owner actions call the
                                                         provider; state still changes
                                                         only via (B)–(E)
@@ -38,11 +38,11 @@ always decided on the server by `lib/billing.ts`.
 | # | Boundary | Exists today | Provider adapter must supply |
 |---|---|---|---|
 | A | `POST /api/businesses/[id]/subscription` (owner, verified email) | Manual mode only; other providers → 501 | `createCheckout({ businessId, planKey, returnUrl })` → hosted URL. Amount and currency from the `Plan` document, never the client. |
-| B | Webhook route | `api/webhooks/payments` (generic HMAC, no timestamp; see "Legacy webhook") | Provider signature scheme with a replay window. `verifyTimestampedSignature` (`lib/billing-lifecycle.ts`) implements the generic `timestamp.body` form (default ±300 s). |
+| B | Webhook route | `api/webhooks/payments` (generic HMAC, no timestamp; see "Legacy webhook") | Provider signature scheme with a replay window. `verifyTimestampedSignature` (`backend/lib/billing-lifecycle.ts`) implements the generic `timestamp.body` form (default ±300 s). |
 | C | Adapter mapping | — | `toNormalizedEvent(providerEvent)` → `NormalizedBillingEvent` (event id, type, provider `occurredAt`, provider subscription id, plan key from the provider price id, period, amount, currency). Re-read the subscription/invoice from the provider API where supported. |
 | D | Lifecycle reducer | `reduceSubscription` (pure, unit-tested; not wired) | Nothing: provider-independent. |
 | E | Persistence | `Payment.providerEventId` unique index; transactions | Store `providerSubscriptionId` (field and unique partial index already exist on `Subscription`, unused today), `cancelAtPeriodEnd` (exists, unused), plus new `graceUntil` and `lastEventAt` fields. |
-| F | Entitlements | `getEntitlements` (active/trialing + period end) | Add the grace period for `past_due` (`grantsAccess` in `lib/billing-lifecycle.ts` shows the rule). |
+| F | Entitlements | `getEntitlements` (active/trialing + period end) | Add the grace period for `past_due` (`grantsAccess` in `backend/lib/billing-lifecycle.ts` shows the rule). |
 | G | Owner actions | — | `cancelAtPeriodEnd(subId)`, `resume(subId)`, `changePlan(subId, planKey, proration)`, `refund(paymentId, amount)` calls. Their effect is applied only when the provider's webhook arrives. |
 | H | Reconciliation | — | `listSubscriptions(updatedSince)` for a daily comparison job. |
 
@@ -70,7 +70,7 @@ downgrade below current usage (block new items vs read-only), tax/GST.
 - Refunds are initiated in the provider (or through G) and recorded from the
   provider's webhook; the admin views stay read-only.
 - Disputes for subscriptions follow the order-dispute pattern
-  (`lib/payments/disputes.ts`): signed webhook → API re-read → append-only
+  (`backend/lib/payments/disputes.ts`): signed webhook → API re-read → append-only
   history.
 
 ## Reconciliation and audit
@@ -92,7 +92,7 @@ downgrade below current usage (block new items vs read-only), tax/GST.
 
 ## Razorpay Subscriptions
 
-`lib/billing-razorpay.ts`, `lib/payments/razorpay.ts`, `app/api/webhooks/razorpay-billing`,
+`backend/lib/billing-razorpay.ts`, `backend/lib/payments/razorpay.ts`, `app/api/webhooks/razorpay-billing`,
 `app/api/businesses/[id]/subscription`, `app/api/admin/plans/razorpay`.
 
 Platform billing uses SiteForge's own Razorpay account (`RAZORPAY_BILLING_*`). It shares
@@ -169,7 +169,7 @@ A browser redirect never does any of this.
 
 The billing webhook also takes `refund.*` and `payment.dispute.*`. Each is re-read from the API and
 recorded in `BillingAdjustment` only against a `Payment` already known as a subscription payment, so
-a store-order refund cannot land here (those use a store's own account and `lib/payments/order-refunds.ts`).
+a store-order refund cannot land here (those use a store's own account and `backend/lib/payments/order-refunds.ts`).
 `Payment.refundedAmount` is worked out from the processed refunds, so a repeated event cannot count
 twice. Neither ever changes a store's access: that stays a separate decision. Open refunds and disputes
 are re-read during reconciliation. Whether Razorpay sends these events to a subscriptions webhook

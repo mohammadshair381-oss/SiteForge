@@ -20,12 +20,12 @@ unset or `false`) until the activation checklist below is complete.
 
 ### Request pipeline (every AI request)
 
-1. `guardAiRequest` (`lib/ai-builder/guard.ts`): same-origin JSON; owner or
+1. `guardAiRequest` (`backend/lib/ai-builder/guard.ts`): same-origin JSON; owner or
    manager of THIS business; verified email; the kill switch and a configured
    key + valid model; business not suspended; **the owner's consent**; then the
    burst/hourly/daily rate limits. Planning `generate` applies the same checks.
 2. Request validation and store data loading (owner-scoped).
-3. `runAiRequest` (`lib/ai-builder/request.ts`): consent is read again (a
+3. `runAiRequest` (`backend/lib/ai-builder/request.ts`): consent is read again (a
    revocation since step 1 wins); the complete outgoing text passes the final
    data check; one request is reserved atomically in the monthly allowance;
    Gemini is called; the output is validated (`accept`) and recorded.
@@ -33,7 +33,7 @@ unset or `false`) until the activation checklist below is complete.
    DRAFT; publishing is separate). Product copy is returned to the form and
    never saved by the server.
 
-### Data sent to Gemini (`lib/ai-builder/sanitize.ts`)
+### Data sent to Gemini (`backend/lib/ai-builder/sanitize.ts`)
 
 The only way store data becomes provider input. Three layers:
 
@@ -55,10 +55,10 @@ Never sent: customers, orders or order history, payment information or
 credentials, accounts, sessions, tokens, passwords or secrets, contact details
 (email, phone, address), prices, stock, SKUs, other businesses' data. Prices,
 policies and the address are used only server-side by the claims check
-(`lib/ai-builder/claims.ts`). Planning briefs are owner-typed text and are
+(`backend/lib/ai-builder/claims.ts`). Planning briefs are owner-typed text and are
 redacted the same way.
 
-### Consent (`lib/ai-builder/consent.ts`)
+### Consent (`backend/lib/ai-builder/consent.ts`)
 
 - Each business's OWNER consents to the current disclosure version
   (`AI_CONSENT_VERSION`, shown in Business settings and in the editor's AI
@@ -79,7 +79,7 @@ redacted the same way.
 - Turning the provider on never implies consent: without it every AI route
   returns `403 ai_consent_required` before rate limits, usage or data access.
 
-### Usage (`lib/ai-builder/usage.ts`, `AiUsage`)
+### Usage (`backend/lib/ai-builder/usage.ts`, `AiUsage`)
 
 - Monthly allowance per business: `features.aiRequestsPerMonth` from the
   Super Admin plan manager; plans that leave it blank get
@@ -105,16 +105,16 @@ redacted the same way.
 | `GEMINI_MODELS` | Optional, comma-separated; more models a task may be routed to. Listing one does not select it. |
 | `AI_PROVIDER_TIMEOUT_MS` | Optional; one timeout for the whole call including the body (1 to 120000, default 30000). |
 
-### Provider layer (`lib/ai-providers/*`)
+### Provider layer (`backend/lib/ai-providers/*`)
 
-Gemini is one adapter, not the architecture. Features call `runAiRequest` (`lib/ai-builder/request.ts`),
+Gemini is one adapter, not the architecture. Features call `runAiRequest` (`backend/lib/ai-builder/request.ts`),
 which calls `executeAiTask` once; neither knows which provider answers.
 
 | Part | File | What it does |
 |---|---|---|
 | Adapter contract | `types.ts` | Text, structured JSON and conversation calls, normalized results, model capabilities |
 | Errors | `errors.ts` | `AiProviderError` extends `HttpError`, so clients get the same fixed message and code, plus a `kind` |
-| Gemini | `gemini.ts` | The only adapter. The request stays in `lib/ai-planning/gemini-http.ts` |
+| Gemini | `gemini.ts` | The only adapter. The request stays in `backend/lib/ai-planning/gemini-http.ts` |
 | Registry | `registry.ts` | Implemented providers, their models and status, and `AI_DISCLOSED_PROVIDER_IDS` |
 | Routing | `routing.ts` | Task to provider and model, checked against what each task and model can do |
 | Settings | `settings.ts` | Stored routing choices (`PlatformSettings.aiRouting`) |
@@ -149,17 +149,17 @@ It stores `disabledProviders`, `defaultRoute`, `taskRoutes` and `fallbackOrder`,
 server checks every save: a name with no adapter, a provider the disclosure does not name, a disabled or unconfigured provider, or a model
 without a task's capabilities is refused.
 
-**Availability.** `aiReadiness(businessId, task?)` (`lib/ai-builder/consent.ts`) is the one answer to "can this store use AI?": the environment,
+**Availability.** `aiReadiness(businessId, task?)` (`backend/lib/ai-builder/consent.ts`) is the one answer to "can this store use AI?": the environment,
 a usable route, not suspended, a plan that includes AI, the owner's consent. Pages, panels and `GET ai/consent` read it. Store owners get a plain
 reason, never which provider or setting is the cause. `aiBuilderStatus()` is the environment alone. `guardAiRequest` checks the route again.
 
-**Edited plans** (`lib/ai-planning/plan-provenance.ts`). A plan is edited in the browser, so nothing it says about itself is believed. Generating
+**Edited plans** (`backend/lib/ai-planning/plan-provenance.ts`). A plan is edited in the browser, so nothing it says about itself is believed. Generating
 one records fingerprints of its text and the owner's brief for 24 hours (`AiPlanGeneration`), and `planning/validate` and `proposals/from-plan`
 compare. A page with unchanged generated text, or the same address and title as a generated page, is AI-written: its edited text gets the claims
 check, consent must still be on, and it gets the `generated` marker when applied (`WebsiteProposal.aiPageSlugs`). Any other page is the owner's
-and is not labelled AI. Every plan field is plain text (`lib/ai-planning/plan.ts`). Saving a plan never calls a provider or uses the allowance.
+and is not labelled AI. Every plan field is plain text (`backend/lib/ai-planning/plan.ts`). Saving a plan never calls a provider or uses the allowance.
 
-### Complete website generation (`lib/ai-website/*`)
+### Complete website generation (`backend/lib/ai-website/*`)
 
 Connects the conversation, the provider layer, proposals, the renderer and the draft services into one workflow. Everything here has only
 ever been read, never run: no real provider has produced a website.
@@ -169,7 +169,7 @@ ever been read, never run: no real provider has produced a website.
 | Blueprint | `blueprint.ts` | One canonical website: identity, design draft, storefront config (homepage, header, footer), menus, pages with CMS sections. Nothing AI-only |
 | Answers | `answers.ts` | Strict schemas of what a provider may answer, independent of provider |
 | Building | `build.ts` | Answers into blueprint data; revisions; differences between two states; preview data |
-| Conversation | `conversation.ts`, `models/AiConversation.ts` | Per business and person, 14 days, messages scrubbed, resumable |
+| Conversation | `conversation.ts`, `backend/models/AiConversation.ts` | Per business and person, 14 days, messages scrubbed, resumable |
 | Generation | `generation.ts` | One discovery turn, one generation step, one revision, all through `runAiRequest` |
 | Proposal | `proposal.ts` | `WebsiteProposal` with target `website`: one approval for all of it |
 | Applying | `apply.ts` | All or nothing, in the proposal's transaction, through the draft services |
@@ -215,7 +215,7 @@ which adds a message in their own words, the source of fact the check already ac
 
 **Local media.** Section and homepage schemas check only an address's format, because they also read stored data, so they stay as they are. `assertMediaUrlsOwned`, which every write and publish goes through, refuses a local media address wherever `localMediaServable()` is false (production always, and development without `LOCAL_MEDIA_ENABLED`). The website workflow does not offer such images in the first place, and asks for an upload.
 
-**Unsaved homepage work.** Autosave still sends `x-expected-version` and still stops on a conflict. The editor never reloads over unsaved edits: an applied proposal or a restored version shows the conflict notice instead (`reloadUnlessUnsaved`), which lists what is unsaved (`lib/editor-unsaved.ts`), lets the owner copy the text, and asks before loading the latest draft. Edits are not merged or restored automatically, because that could overwrite newer work.
+**Unsaved homepage work.** Autosave still sends `x-expected-version` and still stops on a conflict. The editor never reloads over unsaved edits: an applied proposal or a restored version shows the conflict notice instead (`reloadUnlessUnsaved`), which lists what is unsaved (`backend/lib/editor-unsaved.ts`), lets the owner copy the text, and asks before loading the latest draft. Edits are not merged or restored automatically, because that could overwrite newer work.
 
 **Sections.** The AI writes hero, about, imageText, richText, features, steps, faq, cta, contact, products, gallery, newsletter, reviews and spacer sections. Testimonials, statistics,
 team, pricing, logos and video only ever come as library templates with `[[placeholders]]`: the AI must not write them. Contact details come from the business, images from
@@ -258,14 +258,14 @@ proposals need approval, and that the live store is unchanged until publish.
 
 | Item | Where | Tests |
 |---|---|---|
-| Kill switch checked before any provider call or rate-limit spend | `lib/env.ts` `isAiProviderEnabled`, `lib/ai-planning/provider.ts`, `planning/generate` | `tests/unit/gemini-provider.test.ts`, `tests/integration/ai-generate-route.test.ts` |
+| Kill switch checked before any provider call or rate-limit spend | `backend/lib/env.ts` `isAiProviderEnabled`, `backend/lib/ai-planning/provider.ts`, `planning/generate` | `tests/unit/gemini-provider.test.ts`, `tests/integration/ai-generate-route.test.ts` |
 | API key only in the `x-goog-api-key` header (both Gemini modules) | `provider.ts`, `gemini-provider.ts` | same |
 | Fixed client error messages; logs carry only scalar codes | `provider.ts` | same |
 | `generate`: same-origin JSON, owner/manager, verified email | `app/api/businesses/[id]/planning/generate` | `ai-generate-route.test.ts` |
 | Usage limits: 10/15 min per business+address, 10/hour per member, 20/day per business | same | same |
 | Product references must belong to the business | same | same |
 | 30 s timeout; 8192-token output budget (truncation still detected) | `provider.ts` | `gemini-provider.test.ts` |
-| Stored proposals with lifecycle `pending → approved/rejected → applied/failed` and append-only history | `models/WebsiteProposal.ts`, `lib/ai-planning/proposal-service.ts` | `tests/integration/website-proposals.test.ts` |
+| Stored proposals with lifecycle `pending → approved/rejected → applied/failed` and append-only history | `backend/models/WebsiteProposal.ts`, `backend/lib/ai-planning/proposal-service.ts` | `tests/integration/website-proposals.test.ts` |
 | Create from structured actions or from the manual planner's plan (new draft pages) | `app/api/businesses/[id]/proposals`, `.../from-plan`; planner "Save as proposal for review" | same |
 | Preview without saving (rendered with the business's theme) | `/dashboard/businesses/[id]/preview?proposal=…&page=…` | browser check |
 | Approve/reject; apply claims and applies in one transaction (one apply wins); stale pages and expiry (14 days) fail visibly | `.../[proposalId]/review`, `.../apply` | integration |
@@ -284,19 +284,19 @@ Proposal model index (approved operation, `autoIndex` off):
 
 | Item | Where | Tests |
 |---|---|---|
-| Kill switch is exactly `"true"` (no trimming) | `lib/env.ts` | `gemini-provider.test.ts`, `ai-builder.test.ts` |
-| One shared Gemini call: header-only key, ONE timeout covering connection AND body, fixed messages, scalar-only logs, token counts only from `usageMetadata` | `lib/ai-planning/gemini-http.ts` (used by planning and the AI builder) | `tests/unit/gemini-http.test.ts` |
+| Kill switch is exactly `"true"` (no trimming) | `backend/lib/env.ts` | `gemini-provider.test.ts`, `ai-builder.test.ts` |
+| One shared Gemini call: header-only key, ONE timeout covering connection AND body, fixed messages, scalar-only logs, token counts only from `usageMetadata` | `backend/lib/ai-planning/gemini-http.ts` (used by planning and the AI builder) | `tests/unit/gemini-http.test.ts` |
 | `planning/apply` now requires same-origin JSON and a verified email; `planning/validate` same-origin JSON | `app/api/businesses/[id]/planning/{apply,validate}` | `ai-planning-apply.test.ts` |
-| AI-generated plans can only be saved as proposals (no direct "Apply to Draft Pages"); the planner and proposals pages state accurately whether AI is available | `components/dashboard/WebsitePlanner.tsx`, `ProposalsManager.tsx` | browser check |
-| Planner media allowlist uses the same storage bases as ownership checks (`S3_PUBLIC_URL`, legacy name, migration base) | `lib/ai-planning/context.ts` | `ai-planning-context.test.ts` |
+| AI-generated plans can only be saved as proposals (no direct "Apply to Draft Pages"); the planner and proposals pages state accurately whether AI is available | `frontend/components/dashboard/WebsitePlanner.tsx`, `ProposalsManager.tsx` | browser check |
+| Planner media allowlist uses the same storage bases as ownership checks (`S3_PUBLIC_URL`, legacy name, migration base) | `backend/lib/ai-planning/context.ts` | `ai-planning-context.test.ts` |
 | `live-test.ts` respects the kill switch, sends the key only in a header and prints no upstream text | repo root | manual script |
-| Homepage suggestions: owner request → validated change set → PENDING proposal (target `storefront`) → preview → approve → apply to the DRAFT homepage in one transaction with the claim; stale (draft hash) refused at approval and apply | `lib/ai-builder/*`, `app/api/businesses/[id]/ai/storefront`, proposal routes | `tests/unit/ai-builder.test.ts`, `tests/integration/ai-builder.test.ts` |
-| Change sets are strict structured data (hero, announcement, sections, order, visibility, appearance, footer text, brand colours/font); never HTML, scripts, images, products or arbitrary fields | `lib/ai-builder/storefront-changes.ts` | unit |
-| Invented facts refused: prices, numbers, years, ratings, awards, guarantees, certifications, materials and delivery promises must appear in the store's own data or the owner's request | `lib/ai-builder/claims.ts` | unit + integration |
-| Prompts: fixed rules in the system instruction; owner text and store data as escaped, delimited JSON blocks; no customers, orders, emails, phone numbers, payment data or credentials | `lib/ai-builder/prompts.ts` | unit + integration (request body inspected) |
-| Product copy suggestions from the product's own details; nothing saved (the owner uses it in the form and saves normally); missing details returned as questions | `app/api/businesses/[id]/ai/product-copy`, `components/dashboard/ProductCopyAssistant.tsx` | integration |
-| Usage records (`AiUsage`, counters only: requests, successes, failures, per task, provider-reported tokens) and a monthly plan allowance enforced atomically before any provider call (`features.aiRequestsPerMonth`, default 30 when unset, 0 without an active plan) | `models/AiUsage.ts`, `lib/ai-builder/usage.ts`, `lib/billing.ts`, admin plans | integration |
-| Editor AI assistant panel (above the preview; never covers it or the editing sidebar): status, context, request, history, before/after table, canvas preview, apply/reject | `components/dashboard/editor/AiAssistantPanel.tsx` | browser check (disabled state, seeded proposals) |
+| Homepage suggestions: owner request → validated change set → PENDING proposal (target `storefront`) → preview → approve → apply to the DRAFT homepage in one transaction with the claim; stale (draft hash) refused at approval and apply | `backend/lib/ai-builder/*`, `app/api/businesses/[id]/ai/storefront`, proposal routes | `tests/unit/ai-builder.test.ts`, `tests/integration/ai-builder.test.ts` |
+| Change sets are strict structured data (hero, announcement, sections, order, visibility, appearance, footer text, brand colours/font); never HTML, scripts, images, products or arbitrary fields | `backend/lib/ai-builder/storefront-changes.ts` | unit |
+| Invented facts refused: prices, numbers, years, ratings, awards, guarantees, certifications, materials and delivery promises must appear in the store's own data or the owner's request | `backend/lib/ai-builder/claims.ts` | unit + integration |
+| Prompts: fixed rules in the system instruction; owner text and store data as escaped, delimited JSON blocks; no customers, orders, emails, phone numbers, payment data or credentials | `backend/lib/ai-builder/prompts.ts` | unit + integration (request body inspected) |
+| Product copy suggestions from the product's own details; nothing saved (the owner uses it in the form and saves normally); missing details returned as questions | `app/api/businesses/[id]/ai/product-copy`, `frontend/components/dashboard/ProductCopyAssistant.tsx` | integration |
+| Usage records (`AiUsage`, counters only: requests, successes, failures, per task, provider-reported tokens) and a monthly plan allowance enforced atomically before any provider call (`features.aiRequestsPerMonth`, default 30 when unset, 0 without an active plan) | `backend/models/AiUsage.ts`, `backend/lib/ai-builder/usage.ts`, `backend/lib/billing.ts`, admin plans | integration |
+| Editor AI assistant panel (above the preview; never covers it or the editing sidebar): status, context, request, history, before/after table, canvas preview, apply/reject | `frontend/components/dashboard/editor/AiAssistantPanel.tsx` | browser check (disabled state, seeded proposals) |
 
 Brand colours and the font are store-wide business settings (as in the theme
 editor): a suggestion that changes them is flagged before applying, and those
@@ -309,18 +309,18 @@ changes stay in the draft until the owner publishes.
 
 | Piece | Where | Notes |
 |---|---|---|
-| Whole-site plan schema | `lib/ai-planning/plan.ts` (`websitePlanSchema`) | Business summary, audience, recommended theme (one of the 5), design notes/colours/font, up to 50 pages (title, purpose, proposed content), navigation, assumptions, summary. Text only; no sections. |
-| Editing actions | `lib/ai-planning/actions.ts` (`editingActionsSchema`) | `update-section`, `add-section`, `remove-section`, `reorder-sections`, `create-page`; sections validated by the CMS `sectionSchema` (`lib/sections.ts`, 13 section types). Max 100 actions. |
-| Deterministic engine | `lib/ai-planning/editing-engine.ts` | Applies actions to an in-memory editing context with version checks; no I/O. |
-| Proposals | `lib/ai-planning/proposal.ts`, `apply-approved-proposal.ts` | Review-and-approve proposal model in code; transactional apply to DRAFT pages with version checks (tested in `tests/integration/ai-planning-proposal-apply.test.ts`). **Not wired to any route or UI.** |
-| Server context loader | `lib/ai-planning/context.ts` | Business-scoped, read-only; excludes orders, customers, payments, contact details, credentials; media allowlist from owned media. |
-| Reference validation | `lib/ai-planning/validate-plan-references.ts` | Page/product/media references must belong to the business. |
+| Whole-site plan schema | `backend/lib/ai-planning/plan.ts` (`websitePlanSchema`) | Business summary, audience, recommended theme (one of the 5), design notes/colours/font, up to 50 pages (title, purpose, proposed content), navigation, assumptions, summary. Text only; no sections. |
+| Editing actions | `backend/lib/ai-planning/actions.ts` (`editingActionsSchema`) | `update-section`, `add-section`, `remove-section`, `reorder-sections`, `create-page`; sections validated by the CMS `sectionSchema` (`backend/lib/sections.ts`, 13 section types). Max 100 actions. |
+| Deterministic engine | `backend/lib/ai-planning/editing-engine.ts` | Applies actions to an in-memory editing context with version checks; no I/O. |
+| Proposals | `backend/lib/ai-planning/proposal.ts`, `apply-approved-proposal.ts` | Review-and-approve proposal model in code; transactional apply to DRAFT pages with version checks (tested in `tests/integration/ai-planning-proposal-apply.test.ts`). **Not wired to any route or UI.** |
+| Server context loader | `backend/lib/ai-planning/context.ts` | Business-scoped, read-only; excludes orders, customers, payments, contact details, credentials; media allowlist from owned media. |
+| Reference validation | `backend/lib/ai-planning/validate-plan-references.ts` | Page/product/media references must belong to the business. |
 | Planner routes | `app/api/businesses/[id]/planning/{validate,apply,generate}` | Owner/manager. `validate` is stateless; `apply` writes draft pages in one transaction, never publishes; `generate` calls the provider. |
-| Provider | `lib/ai-planning/provider.ts` (Gemini Flash via `fetch`) | Output is parsed and validated with `websitePlanSchema` before returning; never written to the database by `generate`. |
-| Planner UI | `app/dashboard/businesses/[id]/ai-builder`, `components/dashboard/WebsitePlanner.tsx` | Manual planning; "generate" button calls the provider route. |
-| Theme settings | `lib/validation.ts` `themeSettingsSchema`; `Business.themeId` / `themeSettings` | Validated colours/fonts; 5 theme ids (`lib/constants.ts`). |
+| Provider | `backend/lib/ai-planning/provider.ts` (Gemini Flash via `fetch`) | Output is parsed and validated with `websitePlanSchema` before returning; never written to the database by `generate`. |
+| Planner UI | `app/dashboard/businesses/[id]/ai-builder`, `frontend/components/dashboard/WebsitePlanner.tsx` | Manual planning; "generate" button calls the provider route. |
+| Theme settings | `backend/lib/validation.ts` `themeSettingsSchema`; `Business.themeId` / `themeSettings` | Validated colours/fonts; 5 theme ids (`backend/lib/constants.ts`). |
 | Draft preview | `app/dashboard/businesses/[id]/preview` | Renders saved drafts; cannot render unsaved proposals. |
-| Page SEO | `models/Page.ts` `seoTitle` (160) / `seoDescription` (320) | Products have **no** SEO fields. |
+| Page SEO | `backend/models/Page.ts` `seoTitle` (160) / `seoDescription` (320) | Products have **no** SEO fields. |
 | Product copy | `PATCH /api/businesses/[id]/products/[productId]` (`productUpdateSchema`: name 160, description 4000) | Owner/manager/staff. |
 
 ### Findings
@@ -378,7 +378,7 @@ tools, or the ability to call routes.
    | Page SEO | `{ seoTitle ≤160, seoDescription ≤320 }` per page | page update path |
    | Product SEO | needs new optional `Product.seoTitle` / `seoDescription` fields (schema change, approved separately) | product update path |
 2. **Input minimisation:** each task builds its prompt from an allowlist of
-   fields, loaded through `lib/ai-planning/context.ts` (business-scoped).
+   fields, loaded through `backend/lib/ai-planning/context.ts` (business-scoped).
    Owner-entered text is wrapped as data (delimited), never concatenated as
    instructions.
 3. **Proposals:** new `AiProposal` model (business, createdBy, task, status
@@ -415,7 +415,7 @@ tools, or the ability to call routes.
    `error`), latency, input/output character counts, and provider token counts
    when returned. **No prompt or output text.** Quotas come from a new plan
    feature (for example `features.aiRequestsPerMonth`) enforced in
-   `lib/billing.ts`. Super-admin view: totals per business, error rates.
+   `backend/lib/billing.ts`. Super-admin view: totals per business, error rates.
 
 ## 4. Milestones
 
@@ -441,12 +441,12 @@ tools, or the ability to call routes.
 
 ## AI Builder (natural-language requests)
 
-`/dashboard/businesses/[id]/ai-builder` (`components/dashboard/ai/AiBuilder.tsx`),
+`/dashboard/businesses/[id]/ai-builder` (`frontend/components/dashboard/ai/AiBuilder.tsx`),
 also opened from the section editor for the current page (`VisualEditor`). The
 homepage editor keeps its assistant (`AiAssistantPanel`) and links here. The
 earlier planner is unchanged at `/ai-builder/planner`.
 
-**Understanding a request.** `lib/ai-builder/intent.ts` classifies the request
+**Understanding a request.** `backend/lib/ai-builder/intent.ts` classifies the request
 deterministically (no AI call, no allowance used) as homepage, section, page,
 SEO, theme or product work, and within it content, layout, style, new or
 existing section, new page or page change. The owner sees "Understood as ..."
@@ -457,9 +457,9 @@ schema, and all of them go through `guardAiRequest` and `runAiRequest`:
 | Task | Route | Output | How it reaches the store |
 | --- | --- | --- | --- |
 | Homepage, homepage sections | `POST .../ai/storefront` (existing) | Change set | Proposal -> approve -> apply to draft -> publish |
-| New page, draft page change, section on a page | `POST .../ai/page` | `lib/ai-builder/page-builder.ts` -> existing editing actions | Proposal -> approve -> apply to draft -> publish |
-| SEO for a page, product or category | `POST .../ai/seo` | `lib/ai-builder/seo.ts` | Never saved by the route; the owner edits and saves through the normal update |
-| Theme advice | `POST .../ai/theme`; `GET` works without AI | `lib/ai-builder/theme-advisor.ts` | Never saved; applying is the normal theme change (`assertCanUseTheme`) |
+| New page, draft page change, section on a page | `POST .../ai/page` | `backend/lib/ai-builder/page-builder.ts` -> existing editing actions | Proposal -> approve -> apply to draft -> publish |
+| SEO for a page, product or category | `POST .../ai/seo` | `backend/lib/ai-builder/seo.ts` | Never saved by the route; the owner edits and saves through the normal update |
+| Theme advice | `POST .../ai/theme`; `GET` works without AI | `backend/lib/ai-builder/theme-advisor.ts` | Never saved; applying is the normal theme change (`assertCanUseTheme`) |
 | Product text | `POST .../ai/product-copy { mode? }` (existing, extended) | Description, highlights, SEO text | Never saved; the owner edits and saves |
 
 **Pages.** The AI writes text only, into hero, about, features, faq, cta,
@@ -518,7 +518,7 @@ published, as before.
 the owner's words. SEO, theme and product requests are not stored anywhere
 (`AiUsage` is counters only), so they are listed for the current visit only.
 
-**Admin.** `/admin/ai-usage` (`lib/admin/ai-usage.ts`) shows stored counters
+**Admin.** `/admin/ai-usage` (`backend/lib/admin/ai-usage.ts`) shows stored counters
 only: totals, per business, per plan, by kind of request and by month, remaining
 allowances, and businesses at 80% or more of their allowance. Tokens are shown
 only as the provider reported them, no costs are estimated, and allowances are

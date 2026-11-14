@@ -24,7 +24,7 @@ saved addresses and the email cannot be changed. Guest checkout is unchanged.
 ## Feature gate: `CUSTOMER_ACCOUNTS_ENABLED`
 
 - Evaluated server-side on every request by `isCustomerAccountsEnabled()`
-  (`lib/env.ts`). It is not cached, so switching it off takes effect without a
+  (`backend/lib/env.ts`). It is not cached, so switching it off takes effect without a
   code change.
 - Only the exact value `true` (surrounding whitespace ignored) enables the
   feature. A missing, empty or other value (`1`, `TRUE`, `yes`, ...) keeps it
@@ -46,7 +46,7 @@ saved addresses and the email cannot be changed. Guest checkout is unchanged.
 
 **Index check.** With the flag on, every route wrapped in `handleCustomerAuthRoute`
 also needs the feature's unique indexes (`customer_accounts`,
-`lib/required-indexes.ts`): `{ business: 1, email: 1 }` on `customers`, which is
+`backend/lib/required-indexes.ts`): `{ business: 1, email: 1 }` on `customers`, which is
 what stops registrations at the same moment creating two accounts, and
 `{ tokenHash: 1 }` on `customeractiontokens`.
 
@@ -62,7 +62,7 @@ what stops registrations at the same moment creating two accounts, and
   still render with the flag on, and their forms show this message when submitted, so
   create the indexes before turning the flag on.
 
-## Session separation (`lib/auth/customer-session.ts`, `lib/auth/customer-guards.ts`)
+## Session separation (`backend/lib/auth/customer-session.ts`, `backend/lib/auth/customer-guards.ts`)
 
 | | Platform user | Customer |
 |---|---|---|
@@ -81,7 +81,7 @@ what stops registrations at the same moment creating two accounts, and
     been, existing production sessions would simply require a new sign-in.
 - **Known-device marker (not a session).** `sf_device` (`__Host-sf_device` in
   production; httpOnly, SameSite=Strict, 90 days) from
-  `lib/auth/customer-device.ts`. It is issued after a successful login or a
+  `backend/lib/auth/customer-device.ts`. It is issued after a successful login or a
   successful password reset. Besides a random device id it carries two keyed
   hashes: one of (business, normalised email) and one of the account's
   current password hash. So it never contains the email, the password or the
@@ -105,7 +105,7 @@ what stops registrations at the same moment creating two accounts, and
 
 ## Endpoints (`app/api/storefront/account/*`)
 
-The logic lives in `lib/auth/customer-accounts.ts`. Every route is wrapped by
+The logic lives in `backend/lib/auth/customer-accounts.ts`. Every route is wrapped by
 `handleCustomerAuthRoute`, which:
 
 - enforces the feature gate first;
@@ -155,7 +155,7 @@ not necessarily its owner.
   revokes everything else.
 - The verify page never auto-submits, because mail scanners prefetch links.
 
-### Action tokens (`models/CustomerActionToken.ts`, `lib/auth/customer-tokens.ts`)
+### Action tokens (`backend/models/CustomerActionToken.ts`, `backend/lib/auth/customer-tokens.ts`)
 
 These are separate from the platform `AuthToken` model.
 
@@ -183,7 +183,7 @@ These are separate from the platform `AuthToken` model.
 
 - For register, resend and forgot, the account lookups, account creation,
   token issuance and sending run through `runAfterResponse`
-  (`lib/after-response.ts`). Inside a Next request it uses Next 15's stable
+  (`backend/lib/after-response.ts`). Inside a Next request it uses Next 15's stable
   `after()`.
 - If `after()` throws (outside a request scope, or an unexpected runtime), the
   task runs as a detached `setImmediate` task instead.
@@ -277,7 +277,7 @@ customer names.
 
 ### Sources: which client a request counts against
 
-- **Where the address comes from.** `getClientIp` (`lib/rate-limit.ts`,
+- **Where the address comes from.** `getClientIp` (`backend/lib/rate-limit.ts`,
   unchanged) uses **only** the operator-configured `TRUSTED_IP_HEADER`. For
   `x-forwarded-for` it takes the **right-most** entry, the one appended by the
   nearest proxy. Any other header is used as-is.
@@ -289,7 +289,7 @@ customer names.
   - In production a missing setting or missing header is a 503. Outside
     production it becomes the shared `unknown` bucket.
 - **How the address becomes a source key.** The customer endpoints canonicalise
-  it with `rateLimitSourceKey` (`lib/client-address.ts`), through
+  it with `rateLimitSourceKey` (`backend/lib/client-address.ts`), through
   `customerRateLimitSource`:
 
   | Address | Source key |
@@ -461,7 +461,7 @@ Do not add `suppressHydrationWarning` or client-only rendering for this.
 `/account/login`, `/account/register`, `/account/verify-email`,
 `/account/forgot-password` and `/account/reset-password` share
 `app/store/account/layout.tsx` and
-`components/storefront/account/AccountForms.tsx`.
+`frontend/components/storefront/account/AccountForms.tsx`.
 
 - **Availability.** Gated by the feature flag, and rendered only for an
   eligible storefront (404 otherwise). `noindex, nofollow`,
@@ -481,7 +481,7 @@ Do not add `suppressHydrationWarning` or client-only rendering for this.
 - **Password toggle.** The accessible name changes between "Show <field>" and
   "Hide <field>" and contains the visible text. There is no `aria-pressed`.
 - **Contrast.** Button text is black or white, whichever contrasts more with
-  the theme's primary colour (`lib/color-contrast.ts`). For any hex colour this
+  the theme's primary colour (`backend/lib/color-contrast.ts`). For any hex colour this
   reaches at least 4.5:1, which meets WCAG AA for the button text (tested over
   the colour space).
   - **Not covered:** the store-name link in the header (primary colour on
@@ -512,7 +512,7 @@ session).
 - `GET /api/storefront/account/orders/[orderId]`: allowlisted details, by business
   AND customer; another customer's or store's order is the same 404 as a missing one.
 
-## `models/Customer.ts`
+## `backend/models/Customer.ts`
 
 - **Fields:**
   - `business`, `name`, `email` (lowercase, trimmed), `phone`, `notes`.
@@ -525,7 +525,7 @@ session).
   `autoCreate: false`.
 - **Emails:** normalised with `.trim().toLowerCase()`
   (`normalizeAccountEmail`). The dashboard customer list stays derived from
-  orders (`lib/customers.ts`).
+  orders (`backend/lib/customers.ts`).
 
 ## Database prerequisites (NOT performed)
 
@@ -562,7 +562,7 @@ The staging procedure that uses this section is
   deployment settings), for the user the operation needs: read-only for
   Part A, the index operator for Part B. **Never** take it from `.env.local`,
   `.env` or any developer machine. `.env.local` may hold real credentials,
-  and the project's scripts load it first (`scripts/load-env.ts`).
+  and the project's scripts load it first (`backend/scripts/load-env.ts`).
 - **No project scripts.** Do not run `npm run seed`, `npm run create-admin`
   or `npm run domain-migration` as part of this work unless there is a
   separate written approval **and** the shell's `MONGODB_URI` has been
@@ -782,7 +782,7 @@ db.customeractiontokens.countDocuments({ $expr: { $ne: [{ $type: "$expiresAt" },
 ```
 
 - `tokenHash` is the SHA-256 hex digest of the raw token
-  (`hashActionToken`, `lib/auth/action-tokens.ts`). Duplicates block the
+  (`hashActionToken`, `backend/lib/auth/action-tokens.ts`). Duplicates block the
   unique index, and a malformed hash can never match a link.
 - The TTL index ignores an `expiresAt` that is not a date, so such tokens are
   never cleaned up. They are also never usable, because expiry is compared
@@ -959,7 +959,7 @@ has **not been tested against a real database**. For customer accounts:
   running one against a shared database creates no index, and it refuses to
   work if the core indexes are missing.
 - **The rate limiter only checks.** On the first rate-limited request in each
-  process, `ensureRateLimitIndexes` (`lib/rate-limit.ts`) looks for a unique
+  process, `ensureRateLimitIndexes` (`backend/lib/rate-limit.ts`) looks for a unique
   `{ key: 1 }` index. Without one, or if the database cannot say, every
   rate-limited route answers `503 rate_limit_unavailable`, customer accounts,
   platform sign-in, pages, media, domains, planning and the storefront cart and

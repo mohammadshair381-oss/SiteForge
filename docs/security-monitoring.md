@@ -4,7 +4,7 @@
 
 `PATCH /api/admin/users/[id]` `{ action, reason, currentPassword? }`, UI on
 `/admin/users` (confirmation dialog, reason required). Implementation:
-`lib/admin/user-actions.ts`.
+`backend/lib/admin/user-actions.ts`.
 
 | Action | Effect |
 |---|---|
@@ -28,7 +28,7 @@
 
 ## Security events
 
-`models/SecurityEvent.ts`, written by `lib/security-events.ts`.
+`backend/models/SecurityEvent.ts`, written by `backend/lib/security-events.ts`.
 
 Every event has a `scope`: `platform` (SiteForge users) or `storefront`
 (customer accounts of one store; `business` is the Host-resolved store).
@@ -94,7 +94,7 @@ no source fingerprint is stored.
 - **Only failures count** against the account: a unit is reserved before the password check, so guesses at the same
   moment cannot overshoot, and it is returned after a full sign-in. A correct password on an unconfirmed account stays
   counted, because that answer must look like a wrong password.
-- **Known device** (`lib/auth/platform-device.ts`, cookie `__Host-swb_device` in production): after the OWASP device cookie
+- **Known device** (`backend/lib/auth/platform-device.ts`, cookie `__Host-swb_device` in production): after the OWASP device cookie
   pattern. It is issued after a correct sign-in and bound to the email and the current password, so changing the password
   outdates it. It only chooses a budget and never replaces the password check. So people guessing elsewhere cannot lock an owner
   out of a browser they have already used, and a stolen marker grants only that small budget.

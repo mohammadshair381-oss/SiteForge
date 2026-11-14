@@ -9,18 +9,18 @@ collection" below; design research: `docs/theme-design-research.md`).
 ```
 app/store/[[...slug]]/page.tsx ─┐
 app/store/products|product|cart|order|policies|account ─┤
-                                └─ lib/storefront-commerce.ts  loadStorefrontFrame()  (server only)
+                                └─ backend/lib/storefront-commerce.ts  loadStorefrontFrame()  (server only)
                                       ├─ published pages + navigation (toStorefrontView)
                                       ├─ best sellers: PAID orders of this business, last 180 days
                                       ├─ account state (shopperBarProps), online payment, COD
-                                      └─ lib/storefront-home.ts  buildCommerceData()  (pure)
-                                            └─ themeSettings.publishedStorefront (lib/storefront-config.ts)
+                                      └─ backend/lib/storefront-home.ts  buildCommerceData()  (pure)
+                                            └─ themeSettings.publishedStorefront (backend/lib/storefront-config.ts)
 ```
 
-- `themes/*Theme.tsx` are thin wrappers around
-  `components/storefront/commerce/CommerceShell.tsx` with a per-theme
-  `StoreSkin` (`themes/skins/<id>.ts`, registry and types in
-  `components/storefront/commerce/skins.ts`). Behaviour, data and
+- `frontend/themes/*Theme.tsx` are thin wrappers around
+  `frontend/components/storefront/commerce/CommerceShell.tsx` with a per-theme
+  `StoreSkin` (`frontend/themes/skins/<id>.ts`, registry and types in
+  `frontend/components/storefront/commerce/skins.ts`). Behaviour, data and
   accessibility are shared; the skin decides colours, type, shapes, density,
   motion and which shared layout variant each part uses (see "Theme
   collection"). Exactly one `<header>`; editor targets (`data-editor-id`) only
@@ -36,7 +36,7 @@ app/store/products|product|cart|order|policies|account ─┤
   cards, buttons, hero composition, the shared `ProductCard`). Theme access
   per plan and default page generation: `docs/theme-marketplace-and-pages.md`.
 - Client islands only: `CartCount` (reads the existing cart API, listens for
-  `siteforge:cart-updated` from `lib/cart-events.ts`), `MobileMenu` (modal
+  `siteforge:cart-updated` from `backend/lib/cart-events.ts`), `MobileMenu` (modal
   drawer: focus moved in, trapped, Escape closes, focus returns),
   `QuickAddButton` (existing cart POST; server re-checks stock and price),
   `PreviewLinkGuard` (dashboard previews do not navigate).
@@ -73,7 +73,7 @@ category pages open with `StorePageHead`, and the product page sets its details 
 `skin.detailPanel`. Account, cart and order pages use `accountVars` / `surfaceVars`
 and the `sf-acc-*` classes, so client forms need no skin and dark themes stay dark.
 
-**Previews on the marketing pages.** `components/marketing/sample-store.ts` gives
+**Previews on the marketing pages.** `frontend/components/marketing/sample-store.ts` gives
 each theme a fictional business, with photos from `public/samples`
 (`docs/sample-media-credits.md`). Those images are added after the config is read
 and never reach a saved config: owner configs still accept media-library images
@@ -212,8 +212,8 @@ invert it.
   times), `bestSellers`, `newArrivals`, `sale`, `promotions` (several
   allowed), `benefits`, `story`. Each has an id, heading, small heading,
   appearance (background, spacing, alignment) and its own content. Version-1
-  settings are upgraded on read (`lib/storefront-config.ts`); no migration.
-- Presets (`lib/storefront-presets.ts`) give each business type a starting
+  settings are upgraded on read (`backend/lib/storefront-config.ts`); no migration.
+- Presets (`backend/lib/storefront-presets.ts`) give each business type a starting
   layout: clothing, shoes, electronics, grocery, furniture, cosmetics,
   hardware, general retail. The business type is `Business.category`
   (new store types were added to `BUSINESS_CATEGORIES`; older types map to
@@ -223,7 +223,7 @@ invert it.
   need paid orders, new arrivals recent products, deals real reductions).
   There is no "Featured brands" section because SiteForge has no brand data.
 - Website editor (`/dashboard/businesses/[id]/editor`): the homepage opens
-  the store homepage editor (`components/dashboard/editor/HomeEditor.tsx`):
+  the store homepage editor (`frontend/components/dashboard/editor/HomeEditor.tsx`):
   a section navigator, settings for the selected section, add / duplicate /
   remove / reorder / show-hide, undo/redo, save draft, preview, publish. The
   preview is rendered by `ThemeRenderer -> CommerceShell -> CommerceHome`
@@ -274,7 +274,7 @@ progress and a "Continue setup" button until every step is done.
    (business route).
 2. Brand: one of the nine themes (a suggestion per business type), a palette or
    custom primary/accent colours, font and logo, with a live device preview
-   (`lib/brand-presets.ts`; store-wide settings, applied when saved).
+   (`backend/lib/brand-presets.ts`; store-wide settings, applied when saved).
 3. Homepage: the business type's preset with each section's real-data status;
    applying it replaces the DRAFT homepage sections only.
 4. Products: the existing product manager (skippable).
@@ -286,11 +286,11 @@ progress and a "Continue setup" button until every step is done.
 
 `PUT /api/businesses/[id]/setup` stores only progress (`Business.setup`: last
 step, confirmed and skipped steps); step completion comes from real data where
-possible (`lib/store-setup.ts`).
+possible (`backend/lib/store-setup.ts`).
 
 ## Design drafts, menus, homepage blocks and publishing
 
-Design draft (`lib/design-settings.ts`, `lib/design-service.ts`, `/design`): theme,
+Design draft (`backend/lib/design-settings.ts`, `backend/lib/design-service.ts`, `/design`): theme,
 colours, heading and text fonts, button corners and text size are saved to
 `themeSettings.designDraft` and go live only when published. Only previews read the
 draft (`toStorefrontView` with `useDraft`); the public view strips it. Live choices
@@ -302,7 +302,7 @@ fill this draft through `PATCH /api/businesses/[id]/design` (`updateDesignDraft`
 which changes only the fields it is given and refuses locked themes, so the owner's
 colours and fonts stay. Publishing is the only way the live design changes.
 
-Menus (`lib/navigation.ts`): an item links to a page or to a safe `href`, and a
+Menus (`backend/lib/navigation.ts`): an item links to a page or to a safe `href`, and a
 header item can hold one level of `children`. Drafts live in
 `themeSettings.navigation`, the live menus in `publishedNavigation`, and links to
 unpublished or missing pages are left out of the public store. A store without a
@@ -316,13 +316,13 @@ Homepage blocks: a `block` homepage section holds one content section from
 no second renderer. `block` is deliberately not in `HOME_SECTION_TYPES`, which is
 what the AI planner may name.
 
-Content sections added: `richText` (`components/storefront/RichText.tsx`, a small
+Content sections added: `richText` (`frontend/components/storefront/RichText.tsx`, a small
 safe format, never raw HTML), `imageText`, `video`, `logos`, `team`, `steps`,
 `spacer`. `video` shows a picture and a play link that opens YouTube or Vimeo: an
 inline player would need a `frame-src` allowance, and the security headers test pins
 `frame-src 'none'`. Any section can be limited to phones or larger screens (`hideOn`).
 
-Publish overview (`lib/website-publish.ts`, `/publish`): lists what differs between
+Publish overview (`backend/lib/website-publish.ts`, `/publish`): lists what differs between
 drafts and the live site, and publishes only the chosen items, each independently.
 Pages that still have `[[placeholders]]` or an unreviewed policy template are listed
 as not ready. Publishing is always an explicit action.
@@ -339,7 +339,7 @@ refuses them with a 422. A live store's theme, colours, font and older hero and 
 settings cannot be changed through that route (`409 use_design_draft`), nor its
 homepage sections (`409 use_website_editor`); a store that is not live can still set
 them, as nothing is public and going live is checked. Changes to pages that show at
-once pass `assertCanChangeLiveWebsite` (`lib/publish-gates.ts`: not suspended,
+once pass `assertCanChangeLiveWebsite` (`backend/lib/publish-gates.ts`: not suspended,
 verified email, a plan that allows publishing): publishing a page, choosing or
 replacing the Home page, and renaming or moving a published page.
 
@@ -358,7 +358,7 @@ published copy does not show them until the store or its menus are published.
 ## Older homepages
 
 A homepage kept only in `themeSettings.sections` moves to a Home page record the
-first time an owner or manager opens it for editing (`lib/legacy-homepage.ts`,
+first time an owner or manager opens it for editing (`backend/lib/legacy-homepage.ts`,
 `POST /api/businesses/[id]/homepage/adopt`). The record's published copy is exactly
 what the store shows, so visitors see no change, and a draft Home page keeps its own
 draft. A published Home page is never overwritten. The old sections are renamed to
@@ -367,7 +367,7 @@ they are and keep rendering.
 
 ## Draft preview links
 
-`lib/preview-links.ts`, `models/PreviewLink.ts`, `app/preview/view`. Owners and
+`backend/lib/preview-links.ts`, `backend/models/PreviewLink.ts`, `app/preview/view`. Owners and
 managers with a verified email create a link to the whole site or one page, for 1
 hour, 1 day or 7 days. It needs the same active plan as publishing, so it cannot
 serve as free public hosting. The token is 256 random bits, returned once; only its
@@ -397,7 +397,7 @@ that changes nothing looks exactly as before.
 **Sections.** A section can have an owner's `name`, shown only in the editor (`sectionDisplayName`, `homeSectionName`).
 Drag, duplicate, remove with a confirmation, show and hide, undo and redo work in both editors.
 
-**Section library** (`lib/section-library.ts`, `components/dashboard/editor/SectionLibrary.tsx`). Add a template by adding
+**Section library** (`backend/lib/section-library.ts`, `frontend/components/dashboard/editor/SectionLibrary.tsx`). Add a template by adding
 an entry to `SECTION_TEMPLATES`. Inserted templates are ordinary sections. Wording an owner must write is a `[[placeholder]]`,
 and publishing any page or the homepage is refused while a visible section holds one (`findVisiblePlaceholders`,
 `assertNoHomePlaceholders`). On the homepage a template becomes a block or a native section, and the hero template opens the
@@ -406,16 +406,16 @@ all to visitors until there are some. The public route reads reviews only when w
 (`reviewsWanted`), so no other page pays for that query or carries review text. Dashboard previews do the same, except the editor,
 where a section can be added at any moment.
 
-**Screen sizes** (`lib/section-responsive.ts`). Per section and per screen size: hidden, spacing, text alignment, columns, content
+**Screen sizes** (`backend/lib/section-responsive.ts`). Per section and per screen size: hidden, spacing, text alignment, columns, content
 width and picture alignment. Stored as `style.responsive` on page sections and `responsive` on homepage sections. The renderer
 prints them as media queries for elements marked `data-rs`, so the store and the editor's preview iframe behave the same.
 
-**Header and footer** (`header` and `footer` in `lib/storefront-config.ts`). Logo display and size, links' position, sticky, an
+**Header and footer** (`header` and `footer` in `backend/lib/storefront-config.ts`). Logo display and size, links' position, sticky, an
 announcement colour, footer columns and what to show. Layouts offered instead of the theme's are limited to `HEADER_LAYOUTS` and
 `FOOTER_LAYOUTS`, which use only the skin's own tokens. Links' position applies to single-row headers (`glass`, `console`, `minimal`,
 `textual`). A footer column's internal link is checked with `resolveInternalHref` and left out if it leads nowhere.
 
-**Design** (`lib/design-settings.ts`). Heading and text weight, heading size, page background and text colour, button style, corners,
+**Design** (`backend/lib/design-settings.ts`). Heading and text weight, heading size, page background and text colour, button style, corners,
 section spacing, content width and link style join the fonts and colours. Each is a class on the store root (`designClasses`, styled
 in `app/globals.css`), and "theme" adds none. Read and copy the choices only through `pickStoreDesign`. `sf-container` marks each skin's
 container so a width can apply without knowing its size.
@@ -424,14 +424,14 @@ container so a width can apply without knowing its size.
 and copied to the other menu. A dropdown can be a heading with no address. Public menus still resolve only through `resolveNavItems`.
 
 **Page SEO.** `canonicalUrl` follows the draft and published split of the other search fields. Published pages with nothing set fall back
-to text and a picture from their PUBLISHED sections (`lib/page-seo-defaults.ts`), and publish `WebPage` structured data. `FAQPage` is added
+to text and a picture from their PUBLISHED sections (`backend/lib/page-seo-defaults.ts`), and publish `WebPage` structured data. `FAQPage` is added
 only for questions with both a question and an answer, in a section a visitor can see, with no placeholder left. A section hidden on every
 screen size counts as hidden.
 
 **Newer edits.** Homepage, design and menu drafts carry a version (`Business.storefrontDraftVersion`, `designDraftVersion`,
-`navigationDraftVersion`, `lib/draft-version.ts`). A save that sends `x-expected-version` is refused with `409 draft_conflict` if another save
+`navigationDraftVersion`, `backend/lib/draft-version.ts`). A save that sends `x-expected-version` is refused with `409 draft_conflict` if another save
 came first, and the editor stops saving until it is reloaded. Saves that send no version, such as AI proposals and restoring a version, are
-not checked but do move the version on. Menus are written only through `saveNavigationDraft` (`lib/navigation-draft.ts`), which also freezes
+not checked but do move the version on. Menus are written only through `saveNavigationDraft` (`backend/lib/navigation-draft.ts`), which also freezes
 what visitors see on the first draft; generating default pages is the one other writer, and it moves the version on too. Pages keep using
 `Page.version`. A store or page with no version yet counts as version 0.
 

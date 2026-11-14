@@ -17,7 +17,7 @@ implementation notes are in `docs/storefront-commerce.md` ("Theme collection").
 
 ## 2. Audit of the existing five themes
 
-Architecture (kept): one renderer for every theme. `themes/*Theme.tsx` wrap
+Architecture (kept): one renderer for every theme. `frontend/themes/*Theme.tsx` wrap
 `CommerceShell` with a skin; `CommerceShell` → `StoreHeader`, `CommerceHome`
 (hero + owner-ordered sections), `StoreFooter`; inner pages use `StoreFrame`
 with the same header/footer; the editor renders the same tree in

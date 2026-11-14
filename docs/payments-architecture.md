@@ -7,7 +7,7 @@ Razorpay's documented REST API and tested only against a mocked Razorpay**
 Razorpay's real test-mode API, and it is **off by default**
 (`ORDER_ONLINE_PAYMENTS_ENABLED`). No real transaction has been made.
 
-Subscription billing (`api/webhooks/payments`, `models/Payment.ts`) is a
+Subscription billing (`api/webhooks/payments`, `backend/models/Payment.ts`) is a
 separate system and is unchanged; order payments never touch `Payment`.
 
 ## Payment method on orders
@@ -21,7 +21,7 @@ separate system and is unchanged; order payments never touch `Payment`.
   Razorpay account (below).
 - Business users can mark an order paid only through `confirmCodPayment`
   (COD orders only). `markOrderPaid` is called **only** by
-  `confirmPaymentLink` (`lib/payments/order-payments.ts`) after Razorpay
+  `confirmPaymentLink` (`backend/lib/payments/order-payments.ts`) after Razorpay
   confirms the payment. No route lets a person mark an online order paid.
 
 ## Per-business Razorpay accounts
@@ -29,14 +29,14 @@ separate system and is unchanged; order payments never touch `Payment`.
 Each business is paid into **its own** Razorpay account; SiteForge is never the
 merchant and never holds funds.
 
-`models/BusinessPaymentAccount.ts` (one per business per provider):
+`backend/models/BusinessPaymentAccount.ts` (one per business per provider):
 
 - `business`, `provider: "razorpay"`, `mode: "test" | "live"`,
   `status: "active" | "disabled"`, `keyId`, `connectedAt`, `rotatedAt`.
 - `keySecretEnc`, `webhookSecretEnc`: AES-256-GCM `{ v, iv, tag, ct }`,
   `select: false`, removed by `toJSON`, never in an API response, log or error.
 
-Encryption (`lib/payments/credentials-crypto.ts`):
+Encryption (`backend/lib/payments/credentials-crypto.ts`):
 
 - Random 96-bit IV per value; key from `PAYMENT_CREDENTIALS_KEY` (32 random
   bytes, base64), deliberately not derived from `SESSION_SECRET`.
@@ -60,7 +60,7 @@ secrets removed).
 - Responses contain at most `{ provider, mode, keyId, connectedAt, rotatedAt }`
   plus the platform flags.
 - Dashboard: **Settings → Online payments (Razorpay)**
-  (`components/dashboard/OnlinePaymentAccount.tsx`, shown to owners only), which
+  (`frontend/components/dashboard/OnlinePaymentAccount.tsx`, shown to owners only), which
   also shows the business's webhook URL.
 
 Not implemented from the original design: an audit-log entry when credentials
@@ -116,7 +116,7 @@ reservation and one paid `OrderPayment` (tested with concurrent deliveries).
 `x-razorpay-event-id` is recorded as `lastEventId` but is not needed for
 correctness.
 
-`models/OrderPayment.ts` records each link: `business`, `order`, `mode`,
+`backend/models/OrderPayment.ts` records each link: `business`, `order`, `mode`,
 `providerLinkId`, `shortUrl`, `providerPaymentId`, `amountMinor`, `currency`,
 `status` (`created` | `paid` | `failed` | `cancelled`), `orderOutcome`
 (`applied` | `needs_review`), `outcomeReason`.
@@ -187,12 +187,12 @@ live dispute synchronisation has been exercised.**
   `payment.dispute.action_required`, `payment.dispute.won`,
   `payment.dispute.lost`, `payment.dispute.closed`.
 - The signed webhook only triggers a re-read: `GET /v1/disputes/{id}` with the
-  business's own key (`lib/payments/disputes.ts`). The webhook payload's status
+  business's own key (`backend/lib/payments/disputes.ts`). The webhook payload's status
   is ignored; the API's state is stored.
 - A dispute is stored only if its `payment_id` matches an `OrderPayment` of the
   SAME business, with the same currency and an amount not above the payment.
   Unknown payments, other businesses' payments and mismatches are not stored.
-- `models/PaymentDispute.ts` keeps status (`open` / `under_review` / `won` /
+- `backend/models/PaymentDispute.ts` keeps status (`open` / `under_review` / `won` /
   `lost` / `closed`), phase, reason code, amounts (disputed, deducted),
   respond-by, opened/closed dates, and an append-only `history` (each
   provider-observed transition once; duplicate and concurrent deliveries are
@@ -210,7 +210,7 @@ live dispute synchronisation has been exercised.**
 Implemented against Razorpay's documented refund API and tested only with a mocked
 Razorpay. **No real refund has been made.**
 
-`lib/payments/order-refunds.ts`, `models/OrderRefund.ts`,
+`backend/lib/payments/order-refunds.ts`, `backend/models/OrderRefund.ts`,
 `POST /api/businesses/[id]/manage/orders/[orderId]/refund`:
 
 - **Through Razorpay** is owner-only, with a verified email and same-origin JSON. It
@@ -243,7 +243,7 @@ Razorpay. **No real refund has been made.**
 A refund whose first answer was lost, and that Razorpay never gave an id, can stay in
 progress for good if Razorpay never reports it. Then the owner, and only the owner,
 can release its hold (`POST /api/businesses/[id]/manage/orders/[orderId]/refund/recover`,
-`recoverStuckRefund` in `lib/payments/order-refunds.ts`), after checking the payment in
+`recoverStuckRefund` in `backend/lib/payments/order-refunds.ts`), after checking the payment in
 Razorpay's own dashboard.
 
 - **Who:** an owner with a verified email (`requireBusinessRole(id, ["owner"])`), from the

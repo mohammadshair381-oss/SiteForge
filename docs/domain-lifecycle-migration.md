@@ -6,11 +6,11 @@ action that needs a backup and explicit confirmation.
 
 ## Lifecycle states (current)
 
-`lib/domains/lifecycle.ts` gives each domain one state: `pending`, `failed`, `expired`, `verified`
+`backend/lib/domains/lifecycle.ts` gives each domain one state: `pending`, `failed`, `expired`, `verified`
 (ownership proven), `active`, `stale` (ownership proof too old) or `revoked`. `active` needs
-`activatedAt`, which only `lib/domains/activation.ts` sets, and only once DNS points at the configured
+`activatedAt`, which only `backend/lib/domains/activation.ts` sets, and only once DNS points at the configured
 target (`CUSTOM_DOMAIN_CNAME_TARGET` / `CUSTOM_DOMAIN_A_RECORDS`) and a certificate integration
-(`lib/domains/certificates.ts`, selected by `CUSTOM_DOMAIN_CERT_PROVIDER`) reports a valid certificate.
+(`backend/lib/domains/certificates.ts`, selected by `CUSTOM_DOMAIN_CERT_PROVIDER`) reports a valid certificate.
 No DNS, ingress or issuing provider ships with SiteForge.
 
 ### Continuity
@@ -25,7 +25,7 @@ No DNS, ingress or issuing provider ships with SiteForge.
   a warning. An active domain only stops being active if a check at least 72 hours later (`DOMAIN_FAILURE_GRACE_MS`)
   still finds it failing. A good check clears it.
 - **A stored expiry date never stops a domain.** It may have been renewed since the last check, and by the time
-  a request reaches `lib/tenant.ts` TLS has already happened. An expired date is a warning until a check decides.
+  a request reaches `backend/lib/tenant.ts` TLS has already happened. An expired date is a warning until a check decides.
 - **Only 90-day ownership freshness stops a domain outright**, as it always has. Renewing ownership and running checks
   do not wait for the feature's indexes, because neither claims anything new.
 - **APIs:** `active` still means the store's chosen domain, and is unchanged. `lifecycle`, `health` and `unconfirmed`
@@ -33,7 +33,7 @@ No DNS, ingress or issuing provider ships with SiteForge.
 
 ### Health and renewal
 
-`lib/domains/health.ts` works out `healthy`, `degraded`, `unhealthy` or `unknown` and a list of warnings from what
+`backend/lib/domains/health.ts` works out `healthy`, `degraded`, `unhealthy` or `unknown` and a list of warnings from what
 was recorded, including when each check last really succeeded (`lastDnsOkAt`, `lastCertificateOkAt`). Owners see them on
 the Domains page, and Super Admins on `/admin/domains` and each business's page. `DomainEvent` holds the history.
 
@@ -49,10 +49,10 @@ Checks run when an owner asks, or from `POST /api/cron/domain-health` if a sched
 
 | Capability | Where |
 |---|---|
-| Pending-token expiry only (`expiresAt` is `null` for verified/revoked) | `models/DomainVerification.ts` |
-| Retryable DNS verification, classified failures | `lib/domain-dns.ts`, `domains/verify/route.ts` |
+| Pending-token expiry only (`expiresAt` is `null` for verified/revoked) | `backend/models/DomainVerification.ts` |
+| Retryable DNS verification, classified failures | `backend/lib/domain-dns.ts`, `domains/verify/route.ts` |
 | Removal revokes routing; pending cancellation | `domains/route.ts` (`DELETE`) |
-| Routing requires verified record + `Business.customDomain` match + fresh ownership proof + entitlement | `lib/tenant.ts` |
+| Routing requires verified record + `Business.customDomain` match + fresh ownership proof + entitlement | `backend/lib/tenant.ts` |
 | Ownership freshness / renewal (M4) | model helpers, both routes, `DomainManager.tsx` |
 
 ## 2. Indexes

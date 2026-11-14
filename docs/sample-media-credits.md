@@ -1,8 +1,8 @@
 # Sample media sources
 
 Photos used ONLY by the theme previews and the sample stores on the marketing
-pages and in the theme marketplace (`components/marketing/sample-store.ts`,
-`lib/theme-preview-samples.ts`). They are never saved to a business and never
+pages and in the theme marketplace (`frontend/components/marketing/sample-store.ts`,
+`backend/lib/theme-preview-samples.ts`). They are never saved to a business and never
 appear on a public store.
 
 Downloaded from Unsplash, resized and converted to WebP. Unsplash's licence

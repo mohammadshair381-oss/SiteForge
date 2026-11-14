@@ -94,5 +94,5 @@ in its `ScheduledJob` document.
 ## What it does not do
 
 The domain check confirms DNS and certificates. Automated certificate renewal needs a
-`ManagedCertificateProvider` (`lib/domains/certificates.ts`), and none exists yet. `tls_probe` only inspects
+`ManagedCertificateProvider` (`backend/lib/domains/certificates.ts`), and none exists yet. `tls_probe` only inspects
 what a domain presents.

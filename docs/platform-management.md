@@ -7,15 +7,15 @@ Nothing in this document has been compiled or run yet.
 
 ## Plan limits
 
-`lib/usage-limits.ts` is the one place usage is counted (`getBusinessUsage`). The billing page,
-insights, notifications and the Super Admin business page all read it. `lib/plan-limits.ts` holds the
+`backend/lib/usage-limits.ts` is the one place usage is counted (`getBusinessUsage`). The billing page,
+insights, notifications and the Super Admin business page all read it. `backend/lib/plan-limits.ts` holds the
 pure parts that client components also need.
 
 | Limit | Plan field | Absent means | Stops | Enforced in |
 | --- | --- | --- | --- | --- |
 | Products | `features.productLimit` | required | Adding products | `assertCanAddProduct` |
-| Team members | `features.staffLimit` | required | Inviting and accepting | `assertCanAddStaff`, `lib/team-invitations.ts` |
-| Custom domain | `features.customDomain` | required | Adding a domain, and serving one | `assertCanAddCustomDomain`, `lib/tenant.ts` |
+| Team members | `features.staffLimit` | required | Inviting and accepting | `assertCanAddStaff`, `backend/lib/team-invitations.ts` |
+| Custom domain | `features.customDomain` | required | Adding a domain, and serving one | `assertCanAddCustomDomain`, `backend/lib/tenant.ts` |
 | Themes | `features.themes` | default tier | Switching to another theme | `assertCanUseTheme` |
 | AI suggestions | `features.aiRequestsPerMonth` | platform default | New AI requests | `runAiRequest` |
 | Pages | `features.pageLimit` | no limit | Creating pages | `assertCanAddPages` |
@@ -49,7 +49,7 @@ Nothing falls back to writing without a transaction when one is needed: see "Mon
 Restoring a product (`restoreArchivedProduct`) is one transaction: the limit, the edit, a `product_restored` history
 entry, any stock change and any variant changes. Stock that does not add up is refused, and the product stays archived.
 
-Media uploads (`app/api/businesses/[id]/media`, `lib/media-cleanup.ts`) write the record first, as `pending`, which
+Media uploads (`app/api/businesses/[id]/media`, `backend/lib/media-cleanup.ts`) write the record first, as `pending`, which
 reserves the size against the plan. Then the file is uploaded, and the record becomes `ready`. So no file can exist
 without a record. A failed upload removes the file. If that removal fails too, the record stays in the owner's "needs
 removing" list. Uploads interrupted for an hour, and deletions storage did not confirm, are retried when the store's
@@ -61,9 +61,9 @@ listed on the Pages screen, and the owner can prepare them after upgrading. With
 
 ## Notifications
 
-`lib/notification-events.ts` (creating), `lib/notifications.ts` (reading and catching up),
-`models/Notification.ts`, `GET`/`POST /api/businesses/[id]/notifications`,
-`components/dashboard/NotificationBell.tsx`, `NotificationCenter.tsx`.
+`backend/lib/notification-events.ts` (creating), `backend/lib/notifications.ts` (reading and catching up),
+`backend/models/Notification.ts`, `GET`/`POST /api/businesses/[id]/notifications`,
+`frontend/components/dashboard/NotificationBell.tsx`, `NotificationCenter.tsx`.
 
 Events are created as they happen. Each `notify*` function is called after the change is committed, does its work
 after the response, and never throws, so a failure here cannot affect an order, payment or refund. An event's key
@@ -103,12 +103,12 @@ Each role sees only its own events: orders, payments and refunds go to owners an
 subscription, plan limits, domains, team and disputes to owners. Read state is per person. Text never contains
 a shopper's details; the one address shown is a team member's, to the owner.
 
-Off until its unique index exists (`lib/required-indexes.ts`): the bell stays hidden and the page explains
+Off until its unique index exists (`backend/lib/required-indexes.ts`): the bell stays hidden and the page explains
 why. See `docs/database-preparation.md`.
 
 ## Platform settings
 
-`models/PlatformSettings.ts` (one document, `_id: "platform"`), `lib/platform-settings.ts`,
+`backend/models/PlatformSettings.ts` (one document, `_id: "platform"`), `backend/lib/platform-settings.ts`,
 `PUT /api/admin/settings`, `/admin/settings`.
 
 Only the support email, accepting new accounts, and maintenance mode can be changed there, each with a
@@ -128,13 +128,13 @@ contact details, never the platform's.
 
 ## Super Admin plan assignment
 
-`lib/admin/plan-assignment.ts`, `POST /api/admin/businesses/[id]/plan`. For complimentary or support changes,
+`backend/lib/admin/plan-assignment.ts`, `POST /api/admin/businesses/[id]/plan`. For complimentary or support changes,
 with a required reason, audited in the same transaction as `business.plan_assign`.
 
 - It records no payment and never marks anything paid.
-- It does not change who may publish. `getPublishFacts` (`lib/publish-gates.ts`) answers that for the directory:
+- It does not change who may publish. `getPublishFacts` (`backend/lib/publish-gates.ts`) answers that for the directory:
   someone with a publishing role, an active membership and account and a verified email, and menus that link only to
-  this store's pages. Plan access and suspension are added in `lib/store-access.ts`.
+  this store's pages. Plan access and suspension are added in `backend/lib/store-access.ts`.
 - It refuses a subscription Razorpay is billing, or a checkout in progress: that state comes only from Razorpay.
 - In production, a paid plan needs `ALLOW_MANUAL_BILLING`, like any other manual activation.
 - Period end follows the plan's interval, and a free plan has none.
