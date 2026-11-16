@@ -478,7 +478,10 @@ never change with the platform. Use `frontend/components/ui/*`, `confirmDialog` 
 
 - `backend/lib/email.ts` is the only sending entry point: `sendEmail({ to, subject, text, html })`.
   It is server-only (reads `backend/lib/env.ts`) and must never be imported into a client component.
-- Transports: `resend` (native `fetch` to the Resend HTTP API, no SDK), `console`
+- Transports: `resend` (native `fetch` to the Resend HTTP API, no SDK), `disabled` (no email on
+  purpose, allowed in production: every send throws `EmailDisabledError`; password reset answers
+  `503 email_disabled`, invitations are refused, order emails are skipped; check `isEmailDisabled()`
+  before starting anything that only works by email), `console`
   (development only, redacted), `memory` (in-memory outbox for tests). `console` and
   `memory` are refused in production, and a production server without a real provider
   fails its startup check (requests answer 500); should anything run without that check, `sendEmail` still throws

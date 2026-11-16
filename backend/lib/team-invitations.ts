@@ -7,7 +7,7 @@ import { notifyTeamAccepted } from "@/lib/notification-events";
 import { withUsageCheck } from "@/lib/usage-limits";
 import type { MembershipRole } from "@/lib/constants";
 import { dbConnect } from "@/lib/db";
-import { sendEmail } from "@/lib/email";
+import { isEmailDisabled, sendEmail } from "@/lib/email";
 import { renderTeamInvitationEmail } from "@/lib/email-templates";
 import { env } from "@/lib/env";
 import { assertFeatureReady } from "@/lib/required-indexes";
@@ -134,6 +134,7 @@ export async function createInvitation(input: {
   role: MembershipRole;
 }): Promise<InvitationView> {
   await assertFeatureReady("team_invitations");
+  assertInvitationEmailAvailable();
   const { business, grantable } = await loadInviteContext(input.businessId, input.inviterRole);
   if (!grantable.includes(input.role)) throw new HttpError(403, "You cannot invite someone to that role.", "forbidden");
   await assertCanAddStaff(input.businessId);
@@ -159,6 +160,13 @@ export async function createInvitation(input: {
   return toView(invitation, now);
 }
 
+/** An invitation is only a link in an email: with email turned off, none is created or resent. */
+function assertInvitationEmailAvailable(): void {
+  if (isEmailDisabled()) {
+    throw new HttpError(503, "Team invitations are sent by email, which is turned off on this platform right now.", "email_disabled");
+  }
+}
+
 /** Sends a new link and retires the old one. */
 export async function resendInvitation(input: {
   businessId: string;
@@ -167,6 +175,7 @@ export async function resendInvitation(input: {
   inviterRole: MembershipRole;
 }): Promise<InvitationView> {
   await assertFeatureReady("team_invitations");
+  assertInvitationEmailAvailable();
   const { business, grantable } = await loadInviteContext(input.businessId, input.inviterRole);
   const token = newToken();
   const now = new Date();

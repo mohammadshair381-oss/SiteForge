@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import { runAfterResponse } from "@/lib/after-response";
 import { dbConnect } from "@/lib/db";
-import { sendEmail } from "@/lib/email";
+import { isEmailDisabled, sendEmail } from "@/lib/email";
 import { renderOrderEmail, type OrderEmailKind } from "@/lib/email-templates";
 import { Business } from "@/models/Business";
 import { Order, type OrderDoc } from "@/models/Order";
@@ -57,6 +57,8 @@ async function send(kind: OrderEmailKind, businessId: string, orderId: string): 
 /** Queues one order email. Never throws, and never delays or changes the response. */
 export function queueOrderEmail(kind: OrderEmailKind, businessId: string, orderId: string): void {
   try {
+    // Email deliberately turned off (EMAIL_PROVIDER=disabled): orders never depend on their emails.
+    if (isEmailDisabled()) return;
     runAfterResponse(() => send(kind, businessId, orderId), { operation: "order_email", onError: logFailure });
   } catch (error) {
     logFailure(error);

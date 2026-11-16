@@ -1,4 +1,5 @@
-import { handle, ok, readJson } from "@/lib/api";
+import { handle, ok, readJson, HttpError } from "@/lib/api";
+import { isEmailDisabled } from "@/lib/email";
 import { dbConnect } from "@/lib/db";
 import { enforceRateLimit, getClientIp } from "@/lib/rate-limit";
 import { forgotPasswordSchema } from "@/lib/validation";
@@ -31,6 +32,14 @@ export async function POST(request: Request) {
     });
 
     const { email } = forgotPasswordSchema.parse(await readJson(request));
+    // The same answer for every address, so it reveals nothing about accounts.
+    if (isEmailDisabled()) {
+      throw new HttpError(
+        503,
+        "Password reset by email is not available on this platform right now. Please contact your platform administrator.",
+        "email_disabled",
+      );
+    }
 
     await enforceRateLimit({
       key: `forgot:email:${email}`,

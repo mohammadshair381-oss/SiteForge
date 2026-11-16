@@ -28,7 +28,7 @@ import { env, type Env } from "./env";
  */
 
 export type EmailProviderName = "resend" | "console" | "memory";
-export type EmailTransportName = EmailProviderName | "unconfigured";
+export type EmailTransportName = EmailProviderName | "unconfigured" | "disabled";
 
 export interface EmailMessage {
   to: string;
@@ -61,6 +61,7 @@ export type EmailEnv = Pick<
 
 export type ResolvedEmailConfig =
   | { kind: "unconfigured" }
+  | { kind: "disabled" }
   | { kind: "console" }
   | { kind: "memory" }
   | {
@@ -81,6 +82,18 @@ export class EmailConfigurationError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "EmailConfigurationError";
+  }
+}
+
+/**
+ * Email is deliberately switched off (`EMAIL_PROVIDER=disabled`). A configuration error like any
+ * other, so every caller's existing "email could not be sent" handling applies; callers that can
+ * tell the person something better check `isEmailDisabled()` first.
+ */
+export class EmailDisabledError extends EmailConfigurationError {
+  constructor() {
+    super("Email is turned off on this platform (EMAIL_PROVIDER=disabled)");
+    this.name = "EmailDisabledError";
   }
 }
 
@@ -178,6 +191,8 @@ function isPlausibleResendKey(value: string): boolean {
  *   production startup check fails in that state (`assertEmailStartupConfig`);
  * - `console`: development only;
  * - `memory`: development/test only;
+ * - `disabled`: an explicit, owner-chosen "no email" mode, allowed everywhere. Nothing is sent and
+ *   every send throws `EmailDisabledError`; flows that need email say so (docs/email-delivery.md);
  * - `resend`: requires a Resend-shaped EMAIL_API_KEY and a valid EMAIL_FROM; APP_URL,
  *   when set, must be a bare absolute base address, and in production it is
  *   required and must be HTTPS.
@@ -189,6 +204,8 @@ export function resolveEmailConfig(config: EmailEnv): ResolvedEmailConfig {
   if (!provider) {
     return production ? { kind: "unconfigured" } : { kind: "console" };
   }
+
+  if (provider === "disabled") return { kind: "disabled" };
 
   if (provider === "console") {
     if (production) {
@@ -210,7 +227,7 @@ export function resolveEmailConfig(config: EmailEnv): ResolvedEmailConfig {
 
   if (provider !== "resend") {
     throw new EmailConfigurationError(
-      "EMAIL_PROVIDER must be one of 'resend', 'console' or 'memory'",
+      "EMAIL_PROVIDER must be one of 'resend', 'disabled', 'console' or 'memory'",
     );
   }
 
@@ -271,12 +288,12 @@ export function resolveEmailConfig(config: EmailEnv): ResolvedEmailConfig {
  * Startup validation entry point (called from `instrumentation.ts`).
  *
  * - Any environment: an explicitly configured provider must be valid for it.
- * - Production: a real provider is MANDATORY. Every platform account needs an emailed code to sign
- *   in from a new device, and verification and password resets are email-only, so a production
- *   server without delivery would lock out Super Admins, owners, managers and staff. Failing here
- *   makes that a deploy-time failure instead of a lockout discovered at the first sign-in: Next.js
- *   then answers 500 to requests, though the process may keep running, so the hosting platform's
- *   health check of `/login` is what keeps traffic away (docs/email-delivery.md). Never exit here.
+ * - Production: email must be configured on purpose: a real provider (`resend`), or the explicit
+ *   `disabled` mode (no email: password reset, invitations and order emails are off and say so). An
+ *   empty provider fails, so a forgotten setting is a deploy-time failure rather than a silent gap:
+ *   Next.js then answers 500 to requests, though the process may keep running, so the hosting
+ *   platform's health check of `/login` is what keeps traffic away (docs/email-delivery.md). Never
+ *   exit here.
  *
  * The check is local and structural (names, formats, required values). It never contacts the
  * provider, so passing it does not prove that the key is active, the sender domain is verified or
@@ -284,6 +301,10 @@ export function resolveEmailConfig(config: EmailEnv): ResolvedEmailConfig {
  */
 export function assertEmailStartupConfig(config: EmailEnv = env()): void {
   const resolved = resolveEmailConfig(config);
+  if (resolved.kind === "disabled") {
+    console.warn("[email] Email is turned off (EMAIL_PROVIDER=disabled): password reset, team invitations and order emails are unavailable.");
+    return;
+  }
   if (!isProductionEnv(config.NODE_ENV) || resolved.kind === "resend") return;
 
   // In production `console` and `memory` already threw above, so only an empty provider is left.
@@ -294,7 +315,8 @@ export function assertEmailStartupConfig(config: EmailEnv = env()): void {
     ...(config.APP_URL.trim() ? [] : ["APP_URL"]),
   ];
   throw new EmailConfigurationError(
-    `Email delivery is required in production: set EMAIL_PROVIDER=resend with EMAIL_API_KEY, EMAIL_FROM and an HTTPS APP_URL ` +
+    `Email must be configured in production: set EMAIL_PROVIDER=resend with EMAIL_API_KEY, EMAIL_FROM and an HTTPS APP_URL, ` +
+      `or EMAIL_PROVIDER=disabled to run without email ` +
       `(missing: ${missing.join(", ")}). Without it no password-reset code (or any other email) can be sent.`,
   );
 }
@@ -382,6 +404,15 @@ function createUnconfiguredTransport(): EmailTransport {
       throw new EmailConfigurationError(
         "Email is not configured: set EMAIL_PROVIDER and its credentials before sending",
       );
+    },
+  };
+}
+
+function createDisabledTransport(): EmailTransport {
+  return {
+    provider: "disabled",
+    async send() {
+      throw new EmailDisabledError();
     },
   };
 }
@@ -503,6 +534,8 @@ export function createTransport(
   switch (config.kind) {
     case "unconfigured":
       return createUnconfiguredTransport();
+    case "disabled":
+      return createDisabledTransport();
     case "console":
       return createConsoleTransport(deps);
     case "memory":
@@ -528,4 +561,12 @@ export async function sendEmail(message: EmailMessage): Promise<EmailDelivery> {
     production: isProductionEnv(config.NODE_ENV),
   });
   return transport.send(message);
+}
+
+/**
+ * Whether email is deliberately switched off (`EMAIL_PROVIDER=disabled`). Flows that need email check
+ * this first to tell the person plainly, instead of failing after the fact.
+ */
+export function isEmailDisabled(config: Pick<EmailEnv, "EMAIL_PROVIDER"> = env()): boolean {
+  return config.EMAIL_PROVIDER.trim().toLowerCase() === "disabled";
 }

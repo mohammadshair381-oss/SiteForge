@@ -67,7 +67,7 @@ const resendProduction = {
 test("a production server does not start without an email provider", () => {
   const result = boot({ NODE_ENV: "production" });
   assert.equal(result.ok, false);
-  assert.match(result.message ?? "", /Email delivery is required in production/);
+  assert.match(result.message ?? "", /Email must be configured in production/);
   assert.match(result.message ?? "", /missing: EMAIL_PROVIDER, EMAIL_API_KEY, EMAIL_FROM, APP_URL/);
   assert.equal(result.fetchCalls, 0);
 });
@@ -89,6 +89,11 @@ test("a production server does not start with a malformed key, and never prints 
 
 test("a production server starts with valid Resend settings and makes no provider request", () => {
   const result = boot(resendProduction);
+  assert.deepEqual(result, { ok: true, fetchCalls: 0 });
+});
+
+test("a production server starts with email deliberately turned off, without any provider request", () => {
+  const result = boot({ NODE_ENV: "production", EMAIL_PROVIDER: "disabled" });
   assert.deepEqual(result, { ok: true, fetchCalls: 0 });
 });
 

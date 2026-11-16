@@ -15,11 +15,31 @@ Code: `backend/lib/email.ts` (`resolveEmailConfig`, `assertEmailStartupConfig`,
 `tests/unit/email-startup.test.ts`, `tests/unit/instrumentation-email.test.ts`,
 `tests/unit/email-config.test.ts`, `tests/integration/*provider-failure.test.ts`.
 
+## Running without email (`EMAIL_PROVIDER=disabled`)
+
+A deliberate "no email" mode, for running the site before an email provider is set up. It is
+allowed in production because it is a choice someone made, not a forgotten setting (an EMPTY
+`EMAIL_PROVIDER` still stops a production server). Nothing pretends to send:
+
+| Flow | With email turned off |
+|---|---|
+| Signup and login | Work normally (they never use email) |
+| Forgot password | `503 email_disabled` with a plain message, the same for every address (reveals no account); no code is created |
+| Team invitations | Refused with `503 email_disabled`; nothing is stored |
+| Order emails | Skipped quietly; orders are unaffected |
+| Storefront customer accounts | Need email (verification and reset links): keep `CUSTOMER_ACCOUNTS_ENABLED` off |
+
+The server logs one line at startup: `[email] Email is turned off (EMAIL_PROVIDER=disabled): ...`,
+and Super Admin → Settings shows it. Nobody can recover a forgotten password while it is on.
+
+To turn email on later: set `EMAIL_PROVIDER=resend` with `EMAIL_API_KEY`, `EMAIL_FROM` and `APP_URL`
+(below) and redeploy. No code change.
+
 ## Required configuration
 
 | Variable | Production value | Checked at startup |
 |---|---|---|
-| `EMAIL_PROVIDER` | `resend` (the only real provider) | Required. Empty, `console`, `memory` or anything else fails the startup check. |
+| `EMAIL_PROVIDER` | `resend` (the only real provider), or `disabled` to run without email | Required. Empty, `console`, `memory` or anything else fails the startup check. |
 | `EMAIL_API_KEY` | A Resend API key | Required; must start with `re_` and contain no spaces or quotes. |
 | `EMAIL_FROM` | `SiteForge <no-reply@your-verified-domain>` or a bare address | Required; must be a plausible address with no control characters. |
 | `APP_URL` | `https://app.your-domain` | Required; absolute `https://` base address with no credentials, query or fragment (email links are built on it). |

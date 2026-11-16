@@ -63,7 +63,10 @@ export function integrationStatuses(): IntegrationStatus[] {
       key: "email",
       label: "Resend email",
       configured: process.env.EMAIL_PROVIDER === "resend" && has("EMAIL_API_KEY", "EMAIL_FROM", "APP_URL"),
-      note: "Without it, production emails are refused rather than faked.",
+      note:
+        process.env.EMAIL_PROVIDER?.trim().toLowerCase() === "disabled"
+          ? "Turned off on purpose (EMAIL_PROVIDER=disabled): password reset, team invitations and order emails are unavailable."
+          : "Without it, production emails are refused rather than faked.",
     },
     {
       key: "storage",

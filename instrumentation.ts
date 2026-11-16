@@ -13,7 +13,8 @@
  * server-only secrets are never evaluated in the edge (middleware) bundle.
  *
  * Email configuration is validated too (`assertEmailStartupConfig`). In
- * production a real provider is mandatory: an empty `EMAIL_PROVIDER`, `console`,
+ * production email must be configured on purpose: `resend`, or `disabled` to run with no
+ * email at all. An empty `EMAIL_PROVIDER`, `console`,
  * `memory`, or incomplete or malformed Resend settings fail this hook, because
  * password-reset codes (and every other email) cannot work
  * without delivery. Next.js then answers requests with 500, but the process may

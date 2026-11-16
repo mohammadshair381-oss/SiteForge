@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { assertEmailStartupConfig, resolveEmailConfig, type EmailEnv } from "../../backend/lib/email";
+import { assertEmailStartupConfig, createTransport, EmailConfigurationError, EmailDisabledError, isEmailDisabled, resolveEmailConfig, type EmailEnv } from "../../backend/lib/email";
 
 // Pure tests of the startup rule: assertEmailStartupConfig(config) takes plain values and never
 // reads process.env or contacts a provider. Safe, obviously fake values only.
@@ -40,7 +40,7 @@ function startupMessage(values: EmailEnv): string {
 
 test("production refuses to start when no email provider is configured", () => {
   const message = startupMessage(config());
-  assert.match(message, /Email delivery is required in production/);
+  assert.match(message, /Email must be configured in production/);
   assert.match(message, /missing: EMAIL_PROVIDER, EMAIL_API_KEY, EMAIL_FROM, APP_URL/);
   assert.match(message, /password-reset code/);
 });
@@ -144,4 +144,39 @@ test("development still accepts Resend over plain-HTTP localhost, and checks it 
 test("an unconfigured production transport still fails closed at send time", () => {
   // Defence in depth for any process that skipped the startup hook.
   assert.deepEqual(resolveEmailConfig(config()), { kind: "unconfigured" });
+});
+
+// --- the explicit "no email" mode ------------------------------------------------------------
+
+test("EMAIL_PROVIDER=disabled starts in production and development, and says so once", () => {
+  const warned: string[] = [];
+  const original = console.warn;
+  console.warn = (...args: unknown[]) => warned.push(args.map(String).join(" "));
+  try {
+    for (const nodeEnv of ["production", "development", "test"] as const) {
+      assert.doesNotThrow(() => assertEmailStartupConfig(config({ NODE_ENV: nodeEnv, EMAIL_PROVIDER: "disabled" })), nodeEnv);
+    }
+    assert.doesNotThrow(() => assertEmailStartupConfig(config({ EMAIL_PROVIDER: " Disabled " })), "trimmed and case-insensitive");
+  } finally {
+    console.warn = original;
+  }
+  assert.ok(warned.every((line) => /EMAIL_PROVIDER=disabled/.test(line)));
+  assert.equal(warned.length, 4);
+});
+
+test("an empty provider still refuses production, and names both ways forward", () => {
+  const message = startupMessage(config());
+  assert.match(message, /EMAIL_PROVIDER=resend/);
+  assert.match(message, /EMAIL_PROVIDER=disabled/);
+  assert.match(startupMessage(config({ EMAIL_PROVIDER: "disable" })), /EMAIL_PROVIDER must be one of/, "a typo is never read as off");
+});
+
+test("the disabled transport never sends and throws a configuration error", async () => {
+  const resolved = resolveEmailConfig(config({ EMAIL_PROVIDER: "disabled" }));
+  assert.deepEqual(resolved, { kind: "disabled" });
+  const transport = createTransport(resolved);
+  await assert.rejects(transport.send({ to: "a@example.com", subject: "s", text: "t", html: "h" }), (error: unknown) => error instanceof EmailDisabledError && error instanceof EmailConfigurationError);
+  assert.equal(isEmailDisabled({ EMAIL_PROVIDER: "disabled" }), true);
+  assert.equal(isEmailDisabled({ EMAIL_PROVIDER: "resend" }), false);
+  assert.equal(isEmailDisabled({ EMAIL_PROVIDER: "" }), false);
 });

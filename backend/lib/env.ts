@@ -37,7 +37,8 @@ const schema = z.object({
   // refused in production unless this is set to "true".
   ALLOW_MANUAL_BILLING: booleanFromEnv,
   // --- Email (see lib/email.ts) ---
-  // Transport: "resend" | "console" | "memory". Left empty, development uses
+  // Transport: "resend" | "disabled" | "console" | "memory" ("disabled" = no email on purpose,
+  // allowed in production; see docs/email-delivery.md). Left empty, development uses
   // the console transport; in production the startup check fails (a real
   // provider is mandatory there, and "console"/"memory" are refused). Validation of
   // provider-specific requirements lives in lib/email.ts (resolveEmailConfig /
