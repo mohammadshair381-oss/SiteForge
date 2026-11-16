@@ -3,47 +3,27 @@ import { dbConnect } from "@/lib/db";
 import { loginSchema } from "@/lib/validation";
 import { spendPasswordCheck, verifyPassword } from "@/lib/auth/password";
 import { createSession } from "@/lib/auth/session";
-import { isEmailVerified } from "@/lib/auth/guards";
-import { issueEmailVerification } from "@/lib/auth/email-verification";
-import { appendPlatformDeviceCookie, newPlatformDeviceId, platformCredentialFingerprint, readPlatformDeviceCookie, signPlatformDevice, verifyPlatformDevice } from "@/lib/auth/platform-device";
-import { runAfterResponse } from "@/lib/after-response";
 import { rateLimitSourceKey } from "@/lib/client-address";
-import { checkRateLimit, consumeRateLimit, enforceRateLimit, getClientIp, rateLimitedError, releaseRateLimit } from "@/lib/rate-limit";
+import { consumeRateLimit, enforceRateLimit, getClientIp, rateLimitedError, releaseRateLimit } from "@/lib/rate-limit";
 import { User } from "@/models/User";
 import { recordSecurityEvent } from "@/lib/security-events";
-import { appendLoginChallengeCookie, LoginCodeDeliveryError, startLoginChallenge } from "@/lib/auth/login-challenge";
-import { assertAccountCodeBudget, LOGIN_CODE_NOT_SENT, LOGIN_CODE_SEND_WINDOW_MS, LOGIN_CODE_SENDS_PER_ACCOUNT } from "@/lib/auth/login-code-limits";
 
 const LOGIN_WINDOW_MS = 5 * 60 * 1000;
 const LOGIN_MAX_PER_SOURCE = 10;
 const LOGIN_MAX_FAILURES_PER_EMAIL_AND_SOURCE = 5;
 const LOGIN_MAX_FAILURES_PER_EMAIL = 50;
-const LOGIN_DEVICE_WINDOW_MS = 15 * 60 * 1000;
-const LOGIN_MAX_FAILURES_PER_DEVICE = 5;
-const RESEND_WINDOW_MS = 15 * 60 * 1000;
-const RESEND_MAX_PER_EMAIL = 3;
 
-// One answer for a wrong password, an unknown address and an unconfirmed account:
-// otherwise registering an address and then logging in would reveal whether it was
-// already taken.
-const INVALID_CREDENTIALS = "That email and password did not work. If you have just registered, confirm your email first: we have sent you a link.";
+// One answer for a wrong password and an unknown or inactive address, so it cannot reveal an account.
+const INVALID_CREDENTIALS = "That email and password did not work.";
 
 /**
  * Reserves one failed sign-in BEFORE the password check (atomic, so guesses at the same moment cannot
- * overshoot), and hands back how to return it after a full success. So only failures count, and an
- * account with no such address spends and answers exactly the same.
- *
- * - A known device of this account uses only its own budget. People guessing from elsewhere cannot
- *   touch it, so they cannot lock the owner out of a browser the owner has already used.
- * - Anything else uses (account, source), then the account-wide budget, which is what bounds guessing
- *   spread over many addresses. A source that is already blocked never spends the account-wide budget.
+ * overshoot), and hands back how to return it after the right password. So only failures count, and
+ * an address with no account spends and answers exactly the same. (account, source) first, then the
+ * account-wide budget, which bounds guessing spread over many addresses; a source that is already
+ * blocked never spends the account-wide budget.
  */
-async function reserveLoginAttempt(source: string, email: string, deviceId: string | undefined): Promise<() => Promise<void>> {
-  if (deviceId) {
-    const perDevice = await consumeRateLimit({ key: `login:fail:device:${deviceId}`, limit: LOGIN_MAX_FAILURES_PER_DEVICE, windowMs: LOGIN_DEVICE_WINDOW_MS });
-    if (!perDevice.allowed) throw rateLimitedError(perDevice.retryAfterMs);
-    return () => releaseRateLimit(perDevice.bucketKey);
-  }
+async function reserveLoginAttempt(source: string, email: string): Promise<() => Promise<void>> {
   const perSource = await consumeRateLimit({ key: `login:fail:email-source:${email}:${source}`, limit: LOGIN_MAX_FAILURES_PER_EMAIL_AND_SOURCE, windowMs: LOGIN_WINDOW_MS });
   if (!perSource.allowed) throw rateLimitedError(perSource.retryAfterMs);
   const perAccount = await consumeRateLimit({ key: `login:fail:email:${email}`, limit: LOGIN_MAX_FAILURES_PER_EMAIL, windowMs: LOGIN_WINDOW_MS });
@@ -56,6 +36,12 @@ async function reserveLoginAttempt(source: string, email: string, deviceId: stri
   };
 }
 
+/**
+ * Platform login with email and password. The right password signs in directly: there is no emailed
+ * code (an owner decision; see docs/security-monitoring.md for what that means). The password limits
+ * below still apply, and the answer is the same for a wrong password and an unknown or inactive
+ * address.
+ */
 export async function POST(request: Request) {
   return handle(async () => {
     // One IPv4 address, or one IPv6 /64, so rotating addresses inside a /64 gives no new budget.
@@ -70,17 +56,7 @@ export async function POST(request: Request) {
     const body = loginSchema.parse(await readJson(request));
 
     await dbConnect();
-
-    // A marker never replaces the password check below. It chooses a failure budget, and a valid
-    // one for this account and its current password lets this browser skip the emailed code.
-    const device = await verifyPlatformDevice(readPlatformDeviceCookie(request), {
-      email: body.email,
-      currentCredential: async () => {
-        const account = await User.findOne({ email: body.email }).select("+passwordHash");
-        return account?.active ? platformCredentialFingerprint(account.passwordHash, account.deviceTrustVersion) : null;
-      },
-    });
-    const returnAttempt = await reserveLoginAttempt(source, body.email, device?.deviceId);
+    const returnAttempt = await reserveLoginAttempt(source, body.email);
 
     const user = await User.findOne({ email: body.email }).select("+passwordHash");
     // Failures are recorded (no password, digest of the email only) after the
@@ -103,52 +79,15 @@ export async function POST(request: Request) {
       throw new HttpError(401, INVALID_CREDENTIALS, "invalid_credentials");
     }
 
-    if (!isEmailVerified(user)) {
-      // Stays counted as a failure. Giving it back would make this answer, which must look like a
-      // wrong password, the only one that never reaches a limit.
-      // The right password proves who is asking, so a fresh link can go out.
-      await recordSecurityEvent({ type: "login_failed", reason: "unverified_account", userId: user._id, email: body.email, request });
-      const account = { userId: user._id, to: user.email, name: user.name };
-      runAfterResponse(
-        async () => {
-          if (await checkRateLimit({ key: `verify-resend:login:${body.email}`, limit: RESEND_MAX_PER_EMAIL, windowMs: RESEND_WINDOW_MS })) {
-            await issueEmailVerification(account);
-          }
-        },
-        { operation: "login_verification_resend", onError: () => console.error("[login] verification email could not be sent") },
-      );
-      throw new HttpError(401, INVALID_CREDENTIALS, "invalid_credentials");
-    }
-
     // Not a failure. Returning it is best-effort: losing it must not stop a correct sign-in.
     await returnAttempt().catch(() => console.warn("[login] a rate-limit unit could not be returned"));
 
-    if (!device) {
-      // The right password from a browser this account has not confirmed: no session and no
-      // marker yet. Every platform account takes this step, whatever its role; only the
-      // emailed code, entered from this same browser, finishes the sign-in (./code/route.ts).
-      // No code is emailed while the account has no wrong-code budget left for today.
-      await assertAccountCodeBudget(user._id.toString());
-      await enforceRateLimit({ key: `login-code:send:${user._id.toString()}`, limit: LOGIN_CODE_SENDS_PER_ACCOUNT, windowMs: LOGIN_CODE_SEND_WINDOW_MS });
-      try {
-        const started = await startLoginChallenge(
-          {
-            _id: user._id,
-            email: user.email,
-            name: user.name,
-            passwordHash: user.passwordHash,
-            tokenVersion: user.tokenVersion,
-            deviceTrustVersion: user.deviceTrustVersion,
-          },
-          newPlatformDeviceId(),
-        );
-        return appendLoginChallengeCookie(ok(started.view, { status: 202 }), started.rawChallenge);
-      } catch (error) {
-        if (error instanceof LoginCodeDeliveryError) throw new HttpError(503, LOGIN_CODE_NOT_SENT, "code_not_sent");
-        throw error;
-      }
+    // Addresses are no longer confirmed by email, so an account left unconfirmed by the earlier
+    // code-based signup is treated like every other account from now on.
+    if (user.emailVerifiedAt === null) {
+      await User.updateOne({ _id: user._id, emailVerifiedAt: null }, { $unset: { emailVerifiedAt: "" } });
+      user.emailVerifiedAt = undefined;
     }
-
     if (user.platformRole === "super_admin") {
       await recordSecurityEvent({ type: "admin_login", userId: user._id, request });
     }
@@ -158,13 +97,6 @@ export async function POST(request: Request) {
       platformRole: user.platformRole,
       tokenVersion: user.tokenVersion,
     });
-
-    // A known device of this account: refreshes its marker, bound to the password just verified.
-    const deviceToken = await signPlatformDevice({
-      deviceId: device.deviceId,
-      email: body.email,
-      credential: platformCredentialFingerprint(user.passwordHash, user.deviceTrustVersion),
-    });
-    return appendPlatformDeviceCookie(ok({ user: user.toJSON() }), deviceToken);
+    return ok({ user: user.toJSON() });
   });
 }

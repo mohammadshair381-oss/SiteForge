@@ -16,6 +16,7 @@ import { listInvitations, rolesInviterMayGrant } from "@/lib/team-invitations";
 import { isFeatureReady } from "@/lib/required-indexes";
 import DomainManager from "@/components/dashboard/DomainManager";
 import ManagementPageHeader from "@/components/dashboard/ManagementPageHeader";
+import DeleteBusinessCard from "@/components/dashboard/DeleteBusinessCard";
 
 export const dynamic = "force-dynamic";
 
@@ -55,12 +56,15 @@ export default async function BusinessSettings({
   });
 
   const showAi = membership.role === "owner" || membership.role === "manager";
+  // Only the business's primary owner may delete it (lib/business-deletion.ts checks this again).
+  const canDelete = membership.role === "owner" && String(business.owner) === String(user._id);
   const sections = [
     { id: "settings-profile", label: "Business profile" },
     { id: "settings-payments", label: "Payments" },
     ...(showAi ? [{ id: "settings-ai", label: "AI suggestions" }] : []),
     { id: "settings-team", label: "Team" },
     { id: "settings-domain", label: "Domain" },
+    ...(canDelete ? [{ id: "settings-delete", label: "Delete business" }] : []),
   ];
 
   return (
@@ -138,6 +142,11 @@ export default async function BusinessSettings({
           customDomainEntitled={entitlements.customDomain}
         />
       </div>
+      {canDelete && (
+        <div id="settings-delete" className="scroll-mt-44 lg:scroll-mt-32">
+          <DeleteBusinessCard businessId={id} businessName={business.name} />
+        </div>
+      )}
     </div>
   );
 }

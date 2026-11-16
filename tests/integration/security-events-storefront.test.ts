@@ -120,28 +120,34 @@ test("customer password resets: requests, refusals and completions are recorded 
 
 test("platform password resets are recorded too", async () => {
   const user = await createUser({ email: "owner@example.com" });
-  const post = (handler: (r: Request) => Promise<Response>, body: unknown) =>
-    callHandler(handler, new Request("http://localhost/api/auth/password", {
+  const post = async (handler: (r: Request) => Promise<Response>, body: unknown, cookie?: string) => {
+    const res = (await callHandler(handler, new Request("http://localhost/api/auth/password", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-forwarded-for": freshIp() },
+      headers: { "Content-Type": "application/json", "x-forwarded-for": freshIp(), ...(cookie ? { cookie } : {}) },
       body: JSON.stringify(body),
-    })) as Promise<Response>;
-  assert.equal((await post(platformForgotPOST, { email: "owner@example.com" })).status, 200);
+    }))) as Response;
+    await drainAfterResponseTasks();
+    return res;
+  };
+  const pendingCookie = (res: Response) => res.headers.getSetCookie().find((c) => c.startsWith("swb_reset_challenge="))!.split(";")[0];
+  const owner = await post(platformForgotPOST, { email: "owner@example.com" });
+  assert.equal(owner.status, 200);
   assert.equal((await post(platformForgotPOST, { email: "nobody@example.com" })).status, 200);
-  assert.equal((await post(platformResetPOST, { token: "y".repeat(43), password: "new password 123" })).status, 400);
   const message = getEmailOutbox().find((m) => m.to === "owner@example.com");
-  const token = message!.text.match(/reset-password#token=([A-Za-z0-9_-]+)/)![1];
-  assert.equal((await post(platformResetPOST, { token, password: "new password 123" })).status, 200);
+  const code = message!.text.match(/^ {4}(\d{6})$/m)![1];
+  const wrong = code === "000000" ? "111111" : "000000";
+  assert.equal((await post(platformResetPOST, { code: wrong, password: "new password 123" }, pendingCookie(owner))).status, 400);
+  assert.equal((await post(platformResetPOST, { code, password: "new password 123" }, pendingCookie(owner))).status, 200);
 
   const events = await rawEvents();
   assert.deepEqual(events.map((e) => [e.type, e.reason, e.user ? String(e.user) : null]), [
     ["password_reset_requested", null, String(user._id)],
     ["password_reset_requested", null, null],
-    ["password_reset_failed", "invalid_token", null],
+    ["password_reset_failed", "wrong_code", String(user._id)],
     ["password_reset_completed", null, String(user._id)],
   ]);
   assert.ok(events.every((e) => e.scope === "platform"));
-  assertNothingSensitive(events, [token, "y".repeat(43), "owner@example.com", "nobody@example.com"]);
+  assertNothingSensitive(events, [code, "owner@example.com", "nobody@example.com", "new password 123"]);
 });
 
 test("a revoked customer session is recorded once per window, after the response, with the same 401", async () => {

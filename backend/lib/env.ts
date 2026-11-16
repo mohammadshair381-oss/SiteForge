@@ -38,9 +38,10 @@ const schema = z.object({
   ALLOW_MANUAL_BILLING: booleanFromEnv,
   // --- Email (see lib/email.ts) ---
   // Transport: "resend" | "console" | "memory". Left empty, development uses
-  // the console transport and production stays fail-closed (no delivery).
-  // "memory" is refused in production. Validation of provider-specific
-  // requirements lives in lib/email.ts (resolveEmailConfig / startup check).
+  // the console transport; in production the startup check fails (a real
+  // provider is mandatory there, and "console"/"memory" are refused). Validation of
+  // provider-specific requirements lives in lib/email.ts (resolveEmailConfig /
+  // assertEmailStartupConfig). See docs/email-delivery.md.
   EMAIL_PROVIDER: z.string().trim().toLowerCase().prefault(""),
   EMAIL_API_KEY: z.string().trim().prefault(""),
   EMAIL_FROM: z.string().trim().prefault(""),

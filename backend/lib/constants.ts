@@ -16,7 +16,8 @@ export const PRODUCT_OPERATION_ROLES = ["owner", "manager", "staff"] as const;
 export const MEMBERSHIP_STATUSES = ["active", "invited", "disabled"] as const;
 export type MembershipStatus = (typeof MEMBERSHIP_STATUSES)[number];
 
-export const BUSINESS_STATUSES = ["draft", "published", "suspended"] as const;
+/** `deleted`: removed by its owner (soft; lib/business-deletion.ts). Never served, never reopened. */
+export const BUSINESS_STATUSES = ["draft", "published", "suspended", "deleted"] as const;
 export type BusinessStatus = (typeof BUSINESS_STATUSES)[number];
 
 export const PRODUCT_STATUSES = ["draft", "active", "archived"] as const;

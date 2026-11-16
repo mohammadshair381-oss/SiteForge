@@ -33,28 +33,20 @@ export const loginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
-/** The six-digit code emailed for a new-device sign-in. The pending sign-in itself comes only from its cookie. */
+/** The six-digit code emailed to finish a login or a signup. The pending code itself comes only from its cookie. */
 export const loginCodeSchema = z.object({
   code: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit code from the email."),
+});
+
+/** Body for DELETE /api/businesses/[id]: the business name typed out, and the owner's password. */
+export const deleteBusinessSchema = z.object({
+  confirmName: z.string().min(1, "Type the business name to confirm.").max(200, "Type the business name to confirm."),
+  password: z.string().min(1, "Enter your password.").max(200, "Enter your password."),
 });
 
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, "Current password is required"),
   newPassword: passwordSchema,
-});
-
-/**
- * Body for POST /api/auth/email/verify. The raw action token is opaque and
- * URL-safe (see lib/auth/action-tokens.ts); length limits just bound the input
- * before it reaches the token helper.
- */
-export const verifyEmailSchema = z.object({
-  token: z
-    .string()
-    .trim()
-    .min(1, "This confirmation link is incomplete")
-    .max(512, "This confirmation link is not valid"),
-  password: z.string().min(1, "Enter your password").max(200, "Enter your password"),
 });
 
 /**
@@ -66,11 +58,6 @@ export const forgotPasswordSchema = z.object({
   email: emailSchema,
 });
 
-/**
- * Body for POST /api/auth/password/reset. The token is opaque and URL-safe; the
- * password reuses the shared policy so reset, registration and password change
- * stay identical.
- */
 /**
  * Storefront customer accounts (business-scoped; see docs/customer-accounts.md).
  * `emailSchema` normalises with JS `trim()` + `toLowerCase()`, exactly like the
@@ -129,12 +116,13 @@ export function normalizeAccountEmail(value: string): string {
   return value.trim().toLowerCase();
 }
 
+/**
+ * Body for POST /api/auth/password/reset: the emailed six-digit code and the new password (the shared
+ * policy, so reset, registration and password change stay identical). The pending reset itself comes
+ * only from its cookie.
+ */
 export const resetPasswordSchema = z.object({
-  token: z
-    .string()
-    .trim()
-    .min(1, "This reset link is incomplete")
-    .max(512, "This reset link is not valid"),
+  code: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit code from the email."),
   password: passwordSchema,
 });
 

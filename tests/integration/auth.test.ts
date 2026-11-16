@@ -36,43 +36,40 @@ beforeEach(async () => {
   resetMockCookieStore();
 });
 
-test("register creates an unconfirmed user with a hashed password, and says nothing else", async () => {
+test("register creates a user with a hashed password and signs in", async () => {
   const email = `test-${Date.now()}@example.com`;
-  const req = makeRequest("http://localhost/api/auth/register", { email, name: "Test User", password: "password123" });
-
-  const res = await registerHandler(req);
-  assert.equal(res.status, 202);
-  assert.deepEqual(await res.json(), { accepted: true });
-  await drainAfterResponseTasks();
+  const res = await callHandler(registerHandler, makeRequest("http://localhost/api/auth/register", { email, name: "Test User", password: "password123" }));
+  assert.equal(res.status, 201);
+  const body = await res.json();
+  assert.equal(body.user.email, email);
+  assert.equal(body.user.passwordHash, undefined);
+  assert.ok(getMockCookieStore().has(SESSION_COOKIE), "signed in");
 
   const userInDb = await User.findOne({ email }).select("+passwordHash");
   assert.ok(userInDb);
   assert.equal(userInDb.name, "Test User");
   assert.notEqual(userInDb.passwordHash, "password123");
-  assert.equal(userInDb.emailVerifiedAt, null);
+  assert.equal(userInDb.emailVerifiedAt, undefined);
 });
 
-test("registering an email twice keeps one account and gives the same answer", async () => {
+test("registering an email twice keeps one account and refuses the second", async () => {
   const email = `duplicate-${Date.now()}@example.com`;
-  const first = await registerHandler(makeRequest("http://localhost/api/auth/register", { email, name: "User 1", password: "password123" }));
-  await drainAfterResponseTasks();
-  const second = await registerHandler(makeRequest("http://localhost/api/auth/register", { email, name: "User 2", password: "password456" }));
-  await drainAfterResponseTasks();
-  assert.deepEqual([first.status, await first.json()], [second.status, await second.json()]);
+  const first = await callHandler(registerHandler, makeRequest("http://localhost/api/auth/register", { email, name: "User 1", password: "password123" }));
+  resetMockCookieStore();
+  const second = await callHandler(registerHandler, makeRequest("http://localhost/api/auth/register", { email, name: "User 2", password: "password456" }));
+  assert.equal(first.status, 201);
+  assert.equal(second.status, 409);
+  assert.equal((await second.json()).code, "email_taken");
   assert.equal(await User.countDocuments({ email }), 1);
   assert.equal((await User.findOne({ email }))?.name, "User 1");
 });
 
-test("login with correct credentials returns 200 and user data once the new-device code is entered", async () => {
+test("login with correct credentials returns 200 and user data", async () => {
   const user = await createUser({ email: "login-test@example.com", password: "correct-password" });
   const password = getPlainPassword(user);
   assert.ok(password);
 
-  // A browser without a known-device marker: the right password alone signs nothing in.
-  const done = await signInWithCode("login-test@example.com", password);
-  assert.equal(done.first.status, 202);
-  const res = done.final;
-
+  const res = (await signInWithCode("login-test@example.com", password)).final;
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.user.email, "login-test@example.com");

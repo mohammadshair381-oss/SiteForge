@@ -26,11 +26,16 @@ export const LOGIN_CODE_NOT_SENT = "We could not send your sign-in code. Please 
 export const LOGIN_EXPIRED = "This sign-in has expired. Log in again to get a new code.";
 export const LOGIN_CODE_EXPIRED = "This code has expired. Send a new code to continue.";
 export const LOGIN_CODE_LOCKED = "Too many wrong codes. Log in again to get a new code.";
-export const LOGIN_CODE_ACCOUNT_LOCKED =
-  "Too many wrong sign-in codes for this account. Try again later, or log in from a device you have used before.";
+export const LOGIN_CODE_ACCOUNT_LOCKED = "Too many wrong codes for this account today. Please try again later.";
 
-const failureBudget = (userId: string) => ({
-  key: `login-code:fail:account:${userId}`,
+/**
+ * `login` covers sign-in and signup codes. `reset` is separate: anyone can ask for a reset code for
+ * any address, so wrong reset codes must never use up the budget that signing in needs.
+ */
+export type CodeBudget = "login" | "reset";
+
+const failureBudget = (userId: string, budget: CodeBudget = "login") => ({
+  key: budget === "reset" ? `reset-code:fail:account:${userId}` : `login-code:fail:account:${userId}`,
   limit: LOGIN_CODE_FAILURES_PER_ACCOUNT,
   windowMs: LOGIN_CODE_FAILURE_WINDOW_MS,
 });
@@ -46,8 +51,8 @@ function accountLocked(retryAfterMs: number): HttpError {
  * code was really compared. Throws `429 login_code_locked` when the day's budget is used up.
  * Only reachable with a pending sign-in, that is after the right password: it reveals nothing more.
  */
-export async function reserveAccountCodeGuess(userId: string): Promise<() => Promise<void>> {
-  const result = await consumeRateLimit(failureBudget(userId));
+export async function reserveAccountCodeGuess(userId: string, budget: CodeBudget = "login"): Promise<() => Promise<void>> {
+  const result = await consumeRateLimit(failureBudget(userId, budget));
   if (!result.allowed) throw accountLocked(result.retryAfterMs);
   return () => releaseRateLimit(result.bucketKey);
 }
@@ -56,8 +61,8 @@ export async function reserveAccountCodeGuess(userId: string): Promise<() => Pro
  * Refuses (429) to email a code an account could not use, because its budget is used up. Spends
  * nothing: the unit taken to look is given straight back. Call it only after the password check.
  */
-export async function assertAccountCodeBudget(userId: string): Promise<void> {
-  const result = await consumeRateLimit(failureBudget(userId));
+export async function assertAccountCodeBudget(userId: string, budget: CodeBudget = "login"): Promise<void> {
+  const result = await consumeRateLimit(failureBudget(userId, budget));
   await releaseRateLimit(result.bucketKey);
   if (!result.allowed) throw accountLocked(result.retryAfterMs);
 }

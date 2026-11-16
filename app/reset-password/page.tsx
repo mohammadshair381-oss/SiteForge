@@ -1,21 +1,9 @@
-import { Suspense } from "react";
-import AuthShell from "@/components/auth/AuthShell";
-import ResetPasswordForm from "@/components/auth/ResetPasswordForm";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
+/**
+ * Passwords are reset with an emailed six-digit code now (/forgot-password), not a link. An old link
+ * lands here and is sent to start over. Nothing in the link is read.
+ */
 export default function ResetPasswordPage() {
-  return (
-    <AuthShell>
-      <Suspense
-        fallback={
-          <p role="status" className="text-sm text-slate-600">
-            Loading…
-          </p>
-        }
-      >
-        <ResetPasswordForm />
-      </Suspense>
-    </AuthShell>
-  );
+  redirect("/forgot-password");
 }

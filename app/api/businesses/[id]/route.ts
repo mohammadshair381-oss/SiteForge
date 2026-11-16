@@ -4,7 +4,10 @@ import { expectedDraftVersion } from "@/lib/draft-version";
 import { saveNavigationDraft } from "@/lib/navigation-draft";
 import { handle, ok, HttpError, readJson } from "@/lib/api";
 import { requireBusinessRole } from "@/lib/auth/guards";
-import { businessUpdateSchema } from "@/lib/validation";
+import { businessUpdateSchema, deleteBusinessSchema } from "@/lib/validation";
+import { assertSameOriginJsonRequest } from "@/lib/auth/customer-accounts";
+import { enforceRateLimit } from "@/lib/rate-limit";
+import { deleteBusiness } from "@/lib/business-deletion";
 import { assertMediaUrlsOwned, assertSectionMediaOwned } from "@/lib/media-references";
 import { assertCanUseTheme, entitlementsForRole, getEntitlements } from "@/lib/billing";
 import { getThemeMeta } from "@/lib/themes";
@@ -172,4 +175,22 @@ async function assertNavigationPagesOwned(
       );
     }
   }
+}
+
+/**
+ * Deletes the business (soft; lib/business-deletion.ts). Only its primary owner, from the same site,
+ * after typing its exact name and their password. Refused while orders, refunds or a Razorpay-billed
+ * plan still need it. The storefront goes offline and nobody can open the business again.
+ */
+export async function DELETE(request: Request, context: RouteContext) {
+  return handle(async () => {
+    assertSameOriginJsonRequest(request);
+    const { id } = await context.params;
+    const { user } = await requireBusinessRole(id, ["owner"]);
+    // Bounds password guesses through this form (the login limits do not cover it).
+    await enforceRateLimit({ key: `business-delete:${id}:${user._id.toString()}`, limit: 5, windowMs: 60 * 60 * 1000 });
+    const body = deleteBusinessSchema.parse(await readJson(request));
+    await deleteBusiness({ businessId: id, userId: user._id, confirmName: body.confirmName, password: body.password });
+    return ok({ deleted: true });
+  });
 }

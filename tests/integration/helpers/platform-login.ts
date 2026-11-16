@@ -1,15 +1,11 @@
 import { POST as loginPOST } from "@/app/api/auth/login/route";
-import { POST as codePOST } from "@/app/api/auth/login/code/route";
-import { POST as resendPOST } from "@/app/api/auth/login/code/resend/route";
 import { getEmailOutbox } from "@/lib/email";
-import { LOGIN_CHALLENGE_COOKIE } from "@/lib/auth/login-challenge";
-import { PLATFORM_DEVICE_COOKIE } from "@/lib/auth/platform-device";
 import { callHandler } from "./auth";
 
 /**
- * Platform sign-in for integration tests: the password step, then (on a new device) the emailed
- * code read from the in-memory outbox. Each call uses its own source address unless one is given,
- * so tests do not share the per-source limits by accident.
+ * Platform sign-in for integration tests. Login is email and password only (no emailed code). Each
+ * call uses its own source address unless one is given, so tests do not share the per-source limits
+ * by accident. Emailed codes remain only for password reset, read from the in-memory outbox.
  */
 
 let lastOctet = 0;
@@ -20,8 +16,8 @@ export function freshSourceIp(): string {
 
 export interface LoginOptions {
   ip?: string;
-  /** Raw known-device marker to present. */
-  device?: string | null;
+  /** Extra cookie header to send (for example a stale cookie that must be ignored). */
+  cookie?: string;
 }
 
 /** The value a response sets for a cookie, or null (also null when it clears it). */
@@ -37,69 +33,49 @@ export function setCookieHeader(response: Response, name: string): string | null
   return response.headers.getSetCookie().find((header) => header.startsWith(`${name}=`)) ?? null;
 }
 
-/** The newest sign-in code emailed to an address. */
-export function lastLoginCode(to: string): string {
-  const message = [...getEmailOutbox()].reverse().find((m) => m.to === to && m.subject === "Your SiteForge sign-in code");
+export const CODE_SUBJECTS = {
+  login: "Your SiteForge sign-in code",
+  signup: "Your SiteForge confirmation code",
+  reset: "Your SiteForge password reset code",
+} as const;
+export type CodeKind = keyof typeof CODE_SUBJECTS;
+
+/** The newest code of a kind emailed to an address (only password reset sends codes now). */
+export function lastLoginCode(to: string, kind: CodeKind = "reset"): string {
+  const message = [...getEmailOutbox()].reverse().find((m) => m.to === to && m.subject === CODE_SUBJECTS[kind]);
   const code = message?.text.match(/^ {4}(\d{6})$/m)?.[1];
-  if (!code) throw new Error(`no sign-in code was emailed to ${to}`);
+  if (!code) throw new Error(`no ${kind} code was emailed to ${to}`);
   return code;
 }
 
-export function loginCodeEmails(to: string) {
-  return getEmailOutbox().filter((m) => m.to === to && m.subject === "Your SiteForge sign-in code");
-}
-
-function headers(options: { ip?: string; cookie?: string | null }): Record<string, string> {
-  return {
-    "content-type": "application/json",
-    "x-forwarded-for": options.ip ?? freshSourceIp(),
-    ...(options.cookie ? { cookie: options.cookie } : {}),
-  };
+export function loginCodeEmails(to: string, kind: CodeKind = "reset") {
+  return getEmailOutbox().filter((m) => m.to === to && m.subject === CODE_SUBJECTS[kind]);
 }
 
 export function platformLogin(email: string, password: string, options: LoginOptions = {}): Promise<Response> {
-  const cookie = options.device ? `${PLATFORM_DEVICE_COOKIE}=${options.device}` : null;
   return callHandler(
     loginPOST,
-    new Request("http://localhost/api/auth/login", { method: "POST", headers: headers({ ip: options.ip, cookie }), body: JSON.stringify({ email, password }) }),
-  );
-}
-
-export function submitLoginCode(challenge: string | null, code: string, options: { ip?: string } = {}): Promise<Response> {
-  const cookie = challenge ? `${LOGIN_CHALLENGE_COOKIE}=${challenge}` : null;
-  return callHandler(
-    codePOST,
-    new Request("http://localhost/api/auth/login/code", { method: "POST", headers: headers({ ip: options.ip, cookie }), body: JSON.stringify({ code }) }),
-  );
-}
-
-export function requestNewLoginCode(challenge: string | null, options: { ip?: string } = {}): Promise<Response> {
-  const cookie = challenge ? `${LOGIN_CHALLENGE_COOKIE}=${challenge}` : null;
-  return callHandler(
-    resendPOST,
-    new Request("http://localhost/api/auth/login/code/resend", { method: "POST", headers: headers({ ip: options.ip, cookie }), body: "{}" }),
+    new Request("http://localhost/api/auth/login", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-forwarded-for": options.ip ?? freshSourceIp(),
+        ...(options.cookie ? { cookie: options.cookie } : {}),
+      },
+      body: JSON.stringify({ email, password }),
+    }),
   );
 }
 
 export interface CompletedLogin {
-  /** The password step: 200 on a known device, 202 when a code was emailed. */
+  /** The login answer. */
   first: Response;
-  /** The response that finished (or refused) the sign-in. */
+  /** The same answer (login has a single step now); kept so existing callers read `final`. */
   final: Response;
-  challenge: string | null;
-  code: string | null;
-  /** The known-device marker the final response set, if any. */
-  device: string | null;
 }
 
-/** Signs in the whole way: the password, then the emailed code when this device is new. */
+/** Signs in: email and password, one step. (The name predates the removal of login codes.) */
 export async function signInWithCode(email: string, password: string, options: LoginOptions = {}): Promise<CompletedLogin> {
   const first = await platformLogin(email, password, options);
-  if (first.status !== 202) {
-    return { first, final: first, challenge: null, code: null, device: cookieFrom(first, PLATFORM_DEVICE_COOKIE) };
-  }
-  const challenge = cookieFrom(first, LOGIN_CHALLENGE_COOKIE);
-  const code = lastLoginCode(email.trim().toLowerCase());
-  const final = await submitLoginCode(challenge, code, { ip: options.ip });
-  return { first, final, challenge, code, device: cookieFrom(final, PLATFORM_DEVICE_COOKIE) };
+  return { first, final: first };
 }

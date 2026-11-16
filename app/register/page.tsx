@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import AuthShell, { AuthHeading, authInput, authLabel, authLink } from "@/components/auth/AuthShell";
 import { fieldErrorId, invalidProps, readApiError, summaryMessage } from "@/lib/api-errors";
 import { buttonClass } from "@/components/ui/Button";
@@ -11,14 +12,15 @@ import SupportContact from "@/components/ui/SupportContact";
 import { registrationUnavailableReason } from "@/lib/platform-status";
 import { usePlatformStatus } from "@/lib/use-platform-status";
 
+/** Signup with name, email and password: creates the account and signs in straight away. */
 export default function RegisterPage() {
+  const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
-  const [submitted, setSubmitted] = useState<string | null>(null);
   // For display only: the server refuses a registration whatever this says.
   const status = usePlatformStatus();
   const unavailableReason = status ? registrationUnavailableReason(status) : null;
@@ -40,26 +42,13 @@ export default function RegisterPage() {
         setError(summaryMessage(info, ["name", "email", "password"]));
         return;
       }
-      setSubmitted(email);
+      router.push("/dashboard");
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to register");
     } finally {
       setLoading(false);
     }
-  }
-
-  if (submitted) {
-    return (
-      <AuthShell>
-        <AuthHeading title="Check your inbox">
-          We sent a message to {submitted} with what to do next. Open it to confirm your address, then you can start
-          building your store. It can take a few minutes, and may land in your spam folder.
-        </AuthHeading>
-        <p className="mt-6 text-sm text-slate-600">
-          Already confirmed? <Link href="/login" className={authLink}>Log in</Link>
-        </p>
-      </AuthShell>
-    );
   }
 
   if (unavailableReason) {
@@ -76,7 +65,7 @@ export default function RegisterPage() {
 
   return (
     <AuthShell>
-      <AuthHeading title="Create your account">Start building your business website. We&apos;ll email you a link to verify your address.</AuthHeading>
+      <AuthHeading title="Create your account">Start building your business website.</AuthHeading>
 
       <form onSubmit={onSubmit} className="mt-8 space-y-4">
         <div>

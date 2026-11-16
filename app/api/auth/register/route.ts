@@ -1,19 +1,17 @@
 import { handle, ok, readJson } from "@/lib/api";
 import { assertSameOriginJsonRequest } from "@/lib/auth/customer-accounts";
-import { processRegistration } from "@/lib/auth/platform-registration";
+import { registerPlatformAccount } from "@/lib/auth/platform-registration";
+import { createSession } from "@/lib/auth/session";
 import { registerSchema } from "@/lib/validation";
 import { enforceRateLimit, getClientIp } from "@/lib/rate-limit";
-import { runAfterResponse } from "@/lib/after-response";
 import { assertRegistrationOpen } from "@/lib/platform-settings";
 
 const REGISTER_WINDOW_MS = 15 * 60 * 1000;
 const REGISTER_MAX_PER_IP = 5;
 
 /**
- * Starts a registration. The answer, and how long it takes, are the same whether
- * or not the address already has an account: everything that depends on that runs
- * after the response, and nobody is signed in here. The account is usable once its
- * owner has confirmed the address with the emailed link.
+ * Signup with name, email and password. Creates the account and signs in at once (no emailed code,
+ * an owner decision). An address that already has an account answers `409 email_taken`.
  */
 export async function POST(request: Request) {
   return handle(async () => {
@@ -26,10 +24,12 @@ export async function POST(request: Request) {
     });
 
     const body = registerSchema.parse(await readJson(request));
-    runAfterResponse(() => processRegistration(body), {
-      operation: "register",
-      onError: () => console.error("[register] could not finish a registration"),
+    const user = await registerPlatformAccount(body);
+    await createSession({
+      userId: user._id.toString(),
+      platformRole: user.platformRole,
+      tokenVersion: user.tokenVersion,
     });
-    return ok({ accepted: true }, { status: 202 });
+    return ok({ user: user.toJSON() }, { status: 201 });
   });
 }

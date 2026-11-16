@@ -62,9 +62,13 @@ ownership checks applying to URLs stored under the old bucket's public URL.
 Email (see `backend/lib/email.ts`, no SDK, native `fetch`): `EMAIL_PROVIDER`
 (`resend` | `console` | `memory`), `EMAIL_API_KEY`, `EMAIL_FROM`,
 `EMAIL_REPLY_TO` (optional), `APP_URL`. Empty `EMAIL_PROVIDER` means `console`
-in development and fail-closed in production. `console` and `memory` are
-refused in production. With `EMAIL_PROVIDER=resend` in production,
-`EMAIL_API_KEY`, `EMAIL_FROM` and an absolute HTTPS `APP_URL` are required.
+in development. In production a real provider is MANDATORY: `instrumentation.ts`
+(`assertEmailStartupConfig`) fails with an empty provider, `console`, `memory`,
+or Resend settings that are missing or malformed (`EMAIL_API_KEY` starting `re_`,
+`EMAIL_FROM`, an absolute HTTPS base `APP_URL`), because password reset needs an emailed code.
+Requests then answer 500, but the process may keep running ("Ready"): never add `process.exit()`;
+deployments rely on a hosting-platform health check of `/login`. The check is structural and
+never contacts the provider. See `docs/email-delivery.md`.
 
 `dbConnect` falls back to public DNS only when a `mongodb+srv://` lookup is refused
 by a loopback DNS server (`querySrv ECONNREFUSED`, seen on some Windows machines).
@@ -304,19 +308,20 @@ never change with the platform. Use `frontend/components/ui/*`, `confirmDialog` 
   roles explicitly: the default list leaves out managers. `middleware.ts` refuses
   cross-site writes to every `/api` route (`isAllowedApiOrigin`).
 - Platform sign-in limits (`app/api/auth/login/route.ts`, `docs/security-monitoring.md`): only failures count against an
-  account, reserved before the password check and returned after a full sign-in. Sources are IPv4 addresses or IPv6 /64s
-  (`rateLimitSourceKey`). The known-device marker (`backend/lib/auth/platform-device.ts`) never replaces the password: it
-  selects a failure budget and, when valid for the account and its current password, skips the new-device code. No guard
-  may read it. An unconfirmed account's correct password stays counted, and no limit may reveal whether an account exists.
-- New-device sign-in codes (`backend/lib/auth/login-challenge.ts`, `docs/security-monitoring.md`): every platform account,
-  whatever its role; never storefront customers. A right password on a browser without a valid marker answers 202 and
-  emails a code: NO session and NO marker until `POST /api/auth/login/code` accepts it. The pending sign-in lives only in
-  its httpOnly cookie and as an `AuthToken` of type `login_code` (existing indexes; `action-tokens.ts` refuses that type).
-  Store codes only as their keyed hash and never return or log them: only `backend/lib/auth/dev-login-code.ts` prints one,
-  and only with `NODE_ENV=development`, `AUTH_LOG_OTP=true` and `EMAIL_PROVIDER` `console`/`memory`. Keep the 5-minute,
-  single-use limits and the 5 guesses per pending sign-in (a resend never restores them) atomic, and the account's daily
-  wrong-code budget (`backend/lib/auth/login-code-limits.ts`) reserved before every comparison. The marker fingerprint includes
-  `User.deviceTrustVersion` only when above 0, so markers issued before it keep working.
+  account, reserved before the password check and returned after the right password. Sources are IPv4 addresses or IPv6 /64s
+  (`rateLimitSourceKey`). No limit may reveal whether an account exists.
+- Platform signup and login are EMAIL AND PASSWORD ONLY (an owner decision): `POST /api/auth/register` creates the account
+  and signs in (`409 email_taken` for a registered address), `POST /api/auth/login` signs in with the right password. There
+  is no emailed login/signup code and no email confirmation; new accounts have no `emailVerifiedAt`, and logging in clears an
+  old `null`. Do not reintroduce a code step, a "remembered browser" or confirmation without a new owner decision.
+- Password reset is the one emailed six-digit code (`backend/lib/auth/login-challenge.ts`, `backend/lib/auth/code-verification.ts`):
+  `/api/auth/password/forgot` answers identically for every address with a pending code (own httpOnly cookie); when there
+  is nothing to send to, it is a decoy bound to an id no account has, whose code never matches and whose answers equal a
+  wrong code's. `/api/auth/password/reset {code, password}` sets the password, raises `tokenVersion` and `deviceTrustVersion`,
+  and never signs in. Store codes only as their keyed hash (purpose included) and never return or log them: only
+  `backend/lib/auth/dev-login-code.ts` prints one, and only with `NODE_ENV=development`, `AUTH_LOG_OTP=true` and
+  `EMAIL_PROVIDER` `console`/`memory`. Keep the 5-minute, single-use limits, the 5 guesses per pending code and the daily
+  reset budget (`backend/lib/auth/login-code-limits.ts`) reserved before every comparison, keyed by the pending code's account id.
 - Platform admin (`/api/admin/*`): every handler calls `requireSuperAdmin()`
   first. Business status changes are explicit `suspend` / `reactivate` actions
   with a required reason (reactivation returns to `draft`; only the owner's
@@ -334,8 +339,8 @@ never change with the platform. Use `frontend/components/ui/*`, `confirmDialog` 
   versions, payment secrets, order proofs or shopper names/emails from admin
   views; regex-escape search input.
 - Platform account actions (`backend/lib/admin/user-actions.ts`): increment
-  `tokenVersion` on every change, and `deviceTrustVersion` (revokes known devices and pending
-  new-device sign-ins) on `force_signout`, `deactivate` and both role changes; never on an ordinary
+  `tokenVersion` on every change, and `deviceTrustVersion` (cancels every pending reset code) on
+  `force_signout`, `deactivate` and both role changes; never on an ordinary
   logout, and never bind device trust to `tokenVersion`. Never touch business memberships, refuse
   self-actions, keep at least one active super admin (serialised in the
   transaction), require the actor's password for role changes, audit in the
@@ -453,13 +458,11 @@ never change with the platform. Use `frontend/components/ui/*`, `confirmDialog` 
   mark legacy accounts unverified) and is only ever written by the server.
 - `requireVerifiedEmail()` (`backend/lib/auth/guards.ts`) rejects only explicit `null`
   and is applied to privileged writes (business creation, publish, team invite,
-  checkout). Verification orchestration lives in `backend/lib/auth/email-verification.ts`
-  (`POST /api/auth/email/verify`, `POST /api/auth/email/resend`).
-- Registration (`backend/lib/auth/platform-registration.ts`) never reveals whether an address has an
-  account: the answer is always `202`, nobody is signed in, and everything that depends on the
-  account runs after the response. Logging in with an unconfirmed (`null`) account gets the same
-  answer as a wrong password and a fresh link. Verifying needs the link AND the password
-  (pre-hijacking defence); a password reset also confirms the address.
+  checkout). Platform addresses are no longer confirmed (see "Platform signup and login" above), so in
+  practice only sessions of accounts still marked `null` from before are refused.
+- Registration (`backend/lib/auth/platform-registration.ts`) refuses a registered address with `409 email_taken`,
+  which reveals that the address is registered (accepted with the decision above). Someone can sign up with an
+  address they do not own; its owner takes it back with a reset code, which ends every session.
 - One-time links carry their token after `#` (`backend/lib/use-link-token.ts`), so it never reaches a
   server log, proxy or referrer; never put a token in a query string, a path or server-rendered
   page data. Draft previews swap theirs for an httpOnly cookie scoped to `/preview`.
@@ -477,13 +480,16 @@ never change with the platform. Use `frontend/components/ui/*`, `confirmDialog` 
   It is server-only (reads `backend/lib/env.ts`) and must never be imported into a client component.
 - Transports: `resend` (native `fetch` to the Resend HTTP API, no SDK), `console`
   (development only, redacted), `memory` (in-memory outbox for tests). `console` and
-  `memory` are refused in production; an unconfigured production deploy fails closed
-  (`sendEmail` throws) instead of faking delivery.
-- `backend/lib/email-templates.ts` holds the branded HTML + plain-text templates (password reset,
-  email verification). Escape any user-controlled value with `escapeHtml` before
+  `memory` are refused in production, and a production server without a real provider
+  fails its startup check (requests answer 500); should anything run without that check, `sendEmail` still throws
+  instead of faking delivery. Never add a fallback to a non-delivering transport, and
+  never a sign-in path that skips the emailed code because email failed.
+- `backend/lib/email-templates.ts` holds the branded HTML + plain-text templates (the platform's
+  password reset code email, and the storefront's links). Escape any user-controlled value with `escapeHtml` before
   interpolating it, and keep wording imperative — never claim an action succeeded before
   its token has been verified.
-- **Never log raw action tokens, passwords, or complete reset/verification links.** The
+- **Never log raw action tokens, passwords, codes or complete reset/verification links** (the only exception is the
+  development code aid in `backend/lib/auth/dev-login-code.ts`). The
   console transport logs only a masked recipient and the subject, and errors carry the
   HTTP status, never the API key, request body or recipient.
 - No automatic retries: a failed send throws (`EmailSendError`) so callers can decide.
@@ -510,6 +516,15 @@ never change with the platform. Use `frontend/components/ui/*`, `confirmDialog` 
   `Payment`). Gated by `ORDER_ONLINE_PAYMENTS_ENABLED` (default off); live keys
   need `ORDER_PAYMENTS_LIVE_ALLOWED`. Both models have `autoIndex`/`autoCreate`
   off; their indexes are an approved operation (`docs/payments-architecture.md`).
+- Payment key check (`backend/lib/payments/key-check.ts`, `PaymentKeyCheck`, `_id` fixed, immutable,
+  `autoIndex` off, read by `_id` only): call `assertPaymentKeyUsable` (or `checkPaymentKey` +
+  `isBlockingPaymentKeyState`) BEFORE any new code decrypts a store's payment secret or causes a side
+  effect with it (a refund hold, a provider request), and `assertPaymentKeyForEncryption` before
+  encrypting one. Never write the record except by that insert, never update, replace or delete it to
+  make payments work, never create it while encrypted secrets exist (only the operator's
+  `npm run payment-key-check -- adopt --expected-fingerprint <escrow>` may), and never treat a
+  database failure as a mismatch. Never add a mode that decrypts stored secrets to check the key.
+  Owners see only the generic `payment_key_unavailable`; state and fingerprints are Super Admin only.
   Tests use a mocked Razorpay (global `fetch` replaced) and never hit the network.
 - Do not enable live payments or invent provider credentials without authorization.
 
@@ -529,6 +544,13 @@ never change with the platform. Use `frontend/components/ui/*`, `confirmDialog` 
 
 - Follow existing model conventions and add validation + indexes.
 - Product deletes are **soft** (archived) — preserve data where possible.
+- Business deletion is **soft** too (`backend/lib/business-deletion.ts`, `DELETE /api/businesses/[id]`, Settings →
+  Delete business): only the primary owner (`Business.owner`), with the exact name and their password, rate limited.
+  It sets `status: "deleted"`, disables every membership, revokes pending invitations and preview links, in one
+  transaction; nothing is erased. It is refused while orders await payment or delivery, refunds are pending, a
+  Razorpay plan bills, or the store is suspended (checked again in the transaction). `getMembershipsForUser` hides
+  deleted businesses; admin suspend/reactivate never touch one. Never add a path that reopens or hard-deletes it
+  without an owner decision.
 - Never delete collections/production data or run destructive DB ops without approval.
 - Never run `git reset --hard`, force-push, or delete branches without permission.
 - Do not commit, push, deploy, or publish without authorization.

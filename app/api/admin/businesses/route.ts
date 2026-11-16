@@ -61,8 +61,10 @@ export async function PATCH(request: Request) {
 
     const business = await runAuditedAdminAction(async (session) => {
       const filter =
+        // Only a live store can be suspended: a deleted one must never come back through
+        // suspend then reactivate.
         action === "suspend"
-          ? { _id: businessId, status: { $ne: "suspended" } }
+          ? { _id: businessId, status: { $in: ["draft", "published"] } }
           : { _id: businessId, status: "suspended" };
       const update =
         action === "suspend"
@@ -75,8 +77,9 @@ export async function PATCH(request: Request) {
       }).lean();
 
       if (!previous) {
-        const exists = await Business.exists({ _id: businessId }).session(session);
-        if (!exists) throw new HttpError(404, "Business not found", "not_found");
+        const current = await Business.findById(businessId).select("status").session(session).lean<{ status?: string }>();
+        if (!current) throw new HttpError(404, "Business not found", "not_found");
+        if (current.status === "deleted") throw new HttpError(409, "This business was deleted by its owner.", "business_deleted");
         throw new HttpError(
           409,
           action === "suspend"

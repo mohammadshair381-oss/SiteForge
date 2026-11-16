@@ -8,7 +8,6 @@ import { callHandler, createAuthHeadersForUser } from "./helpers/auth";
 import { clearRequestCookies } from "./helpers/mock-next-headers-setup";
 import { call, freshIp, lastToken, register, store } from "./helpers/customer-accounts";
 import { GET as meGET } from "@/app/api/auth/me/route";
-import { POST as platformVerifyPOST } from "@/app/api/auth/email/verify/route";
 import { POST as passwordPOST } from "@/app/api/auth/password/route";
 import { POST as customerVerifyPOST } from "@/app/api/storefront/account/email/verify/route";
 import { drainAfterResponseTasks } from "@/lib/after-response";
@@ -122,10 +121,9 @@ test("customer email-verification refusals are recorded per store without the to
   for (const secret of [token, "z".repeat(43), "not the password", "ada@example.com"]) assert.ok(!raw.includes(secret));
 });
 
-test("platform email-verification refusals and wrong current passwords are recorded", async () => {
+test("wrong current passwords are recorded", async () => {
   const user = await createUser({ password: "current-password-1" });
   const headers = await createAuthHeadersForUser(String(user._id), "user", user.tokenVersion);
-  assert.equal((await post(platformVerifyPOST, { token: "q".repeat(43), password: "current-password-1" })).status, 400);
 
   const wrong = await post(passwordPOST, { currentPassword: "nope", newPassword: "brand-new-password-2" }, { ...headers });
   assert.equal(wrong.status, 400);
@@ -134,13 +132,11 @@ test("platform email-verification refusals and wrong current passwords are recor
 
   const events = await SecurityEvent.collection.find().sort({ _id: 1 }).toArray();
   assert.deepEqual(events.map((e) => [e.type, e.reason, e.user ? String(e.user) : null]), [
-    ["email_verification_failed", "invalid_token", null],
     ["password_change_failed", "wrong_password", String(user._id)],
   ]);
   const raw = JSON.stringify(events);
-  for (const secret of ["q".repeat(43), "nope", "brand-new-password-2", "current-password-1"]) assert.ok(!raw.includes(secret));
+  for (const secret of ["nope", "brand-new-password-2", "current-password-1"]) assert.ok(!raw.includes(secret));
 
   const summary = await getSecuritySummary();
-  assert.equal(summary.emailVerificationFailures24h, 1);
   assert.equal(summary.passwordChangeFailures24h, 1);
 });

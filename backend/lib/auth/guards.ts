@@ -147,10 +147,12 @@ export async function requireBusinessRole(
   return { user, membership };
 }
 
+/** The user's memberships with their businesses. A deleted business (lib/business-deletion.ts) is left out. */
 export async function getMembershipsForUser(userId: string) {
   await dbConnect();
-  return Membership.find({ user: userId })
-    .populate({ path: "business", model: Business })
+  const memberships = await Membership.find({ user: userId })
+    .populate({ path: "business", model: Business, match: { status: { $ne: "deleted" } } })
     .sort({ createdAt: 1 })
     .lean();
+  return memberships.filter((membership) => membership.business != null);
 }

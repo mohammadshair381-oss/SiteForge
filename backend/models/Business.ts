@@ -97,8 +97,11 @@ export interface BusinessDoc {
   navigationDraftVersion?: number;
   /** Stops two requests catching up on notifications at once. Runs out by itself after a crash. */
   notificationsSyncLeaseUntil?: Date | null;
-  /** Written only by Super Admin suspend and reactivate. Absent on stores never changed that way. */
+  /** Written by Super Admin suspend and reactivate, and by the owner's deletion. Absent on stores never changed that way. */
   statusChangedAt?: Date | null;
+  /** When the owner deleted the business (soft; lib/business-deletion.ts), and who. Absent otherwise. */
+  deletedAt?: Date | null;
+  deletedBy?: Types.ObjectId | null;
   /**
    * Moved inside a transaction by anything checking a plan's limit (`takeUsageTurn`,
    * lib/billing.ts). Two such transactions conflict here, so the later one retries and counts
@@ -204,6 +207,8 @@ const businessSchema = new Schema<BusinessDoc>(
     designDraftVersion: { type: Number, default: undefined },
     navigationDraftVersion: { type: Number, default: undefined },
     statusChangedAt: { type: Date, default: undefined },
+    deletedAt: { type: Date, default: undefined },
+    deletedBy: { type: Schema.Types.ObjectId, ref: "User", default: undefined },
     usageTurn: { type: Number, default: undefined, select: false },
     currency: { type: String, default: "USD", uppercase: true, trim: true },
     themeId: { type: String, enum: THEME_IDS, default: "aurora" },

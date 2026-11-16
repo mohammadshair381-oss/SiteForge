@@ -73,7 +73,7 @@ explicit approval before every write. Nothing here has been performed.
 | `businesspaymentaccounts`, `orderpayments`, `paymentdisputes` indexes | `docs/payments-architecture.md`, "Database prerequisites" |
 | `securityevents` indexes (TTL retention) | `docs/security-monitoring.md`, "Database prerequisites" |
 | `websiteproposals` index | `docs/ai-website-builder-plan.md`, "Implemented (M0 + M1)" |
-| Backup and restore drill before the first index operation | Operator |
+| Backup and restore drill before the first index operation | `docs/backup-and-disaster-recovery.md`, section 7 (Operator, Atlas admin) |
 | Other models still build indexes automatically at startup | `docs/customer-accounts.md`, "Automatic collection and index creation" |
 
 ## 5. External credentials and service configuration
@@ -82,11 +82,11 @@ Set in the secret manager only; never committed, never read by agents.
 
 | Variable / service | Needed for |
 |---|---|
-| `MONGODB_URI` (replica set), `SESSION_SECRET` (32+ chars) | Everything |
+| `MONGODB_URI` (replica set), `SESSION_SECRET` (32+ chars) | Everything. `SESSION_SECRET` also keys hashes stored in the database: escrow it (`docs/backup-and-disaster-recovery.md`, section 4) |
 | `TRUSTED_IP_HEADER` | Rate limits and security-event source fingerprints (mandatory in production) |
-| Resend account, verified sender domain, `EMAIL_PROVIDER=resend`, `EMAIL_API_KEY`, `EMAIL_FROM`, HTTPS `APP_URL` | Verification and reset emails |
+| Resend account, verified sender domain, `EMAIL_PROVIDER=resend`, `EMAIL_API_KEY`, `EMAIL_FROM`, HTTPS `APP_URL` | **Mandatory in production** (without them the startup check fails and requests answer HTTP 500; the process may keep running): the password reset code (signup and login need no email), team invitations and order emails, verification and reset emails. See `docs/email-delivery.md` |
 | `S3_*` bucket | Media uploads |
-| `PAYMENT_CREDENTIALS_KEY` (32 random bytes, backed up) | Encrypting each business's Razorpay secrets |
+| `PAYMENT_CREDENTIALS_KEY` (32 random bytes, escrowed in two places with a recorded fingerprint, never changed while encrypted records exist) | Encrypting each business's Razorpay secrets. A wrong key is caught by the payment key check once its record exists (`docs/payments-architecture.md`, "Payment key check"); a lost key means every store must reconnect Razorpay (`docs/backup-and-disaster-recovery.md`, section 3) |
 | Per business: Razorpay test keys and a webhook (payment-link and `payment.dispute.*` events) | Online order payments and disputes |
 | Billing provider account, plans and prices | SaaS subscriptions (after the decisions in `docs/subscription-billing-audit.md`) |
 | AI provider and data-sharing approval, then `GEMINI_API_KEY` + `AI_PROVIDER_ENABLED=true` | AI builder (after the decisions in `docs/ai-website-builder-plan.md`) |
@@ -97,6 +97,9 @@ Set in the secret manager only; never committed, never read by agents.
 | Item | Reference |
 |---|---|
 | Isolated staging database and credentials; section 4 operations applied there first | — |
+| Restore drill into an isolated cluster: inventory, indexes, key fingerprints, canary sign-in and tenant checks, measured RTO and RPO recorded | `docs/backup-and-disaster-recovery.md`, section 7 |
+| Health check rejects a deployment without `EMAIL_PROVIDER` (marked unhealthy, no traffic) and passes once it is restored | `docs/email-delivery.md`, "Staging tests", step 0 |
+| Platform email with real delivery: password reset code; signup and login work without email; no codes or links in logs | `docs/email-delivery.md`, "Staging tests" |
 | Customer accounts end to end with real email (register, verify, login, reset, tenant isolation, HTTPS cookies) | `docs/customer-accounts-staging-runbook.md` |
 | Razorpay **test mode**: connect, pay, return, webhook, duplicate delivery, link expiry, a test dispute | `docs/payments-architecture.md` |
 | Admin actions with two real admins (force sign-out, role change, last-admin refusal) | `docs/security-monitoring.md` |
@@ -111,16 +114,39 @@ Production must not be called ready while any of these is open:
 
 - Every staging item in section 6 passed, with evidence.
 - Hosting, wildcard DNS, TLS and ingress configured; `NODE_ENV=production`
-  start-up validation passes (`instrumentation.ts`).
-- Backups and a tested restore for MongoDB; `PAYMENT_CREDENTIALS_KEY` backed up.
+  start-up validation passes (`instrumentation.ts`), including the mandatory
+  email configuration. Passing it shows the configuration is complete and
+  well-formed, not that mail arrives: a real password reset code must also have been
+  received (`docs/email-delivery.md`).
+- A health or readiness check configured **in the hosting platform** (SiteForge
+  does not set one up) that requests `/login` and requires HTTP 200, so an
+  instance whose startup check failed is marked unhealthy and receives no
+  traffic. A failed check makes requests answer 500 but does not end the
+  process, which may still print "Ready". On serverless hosting, check the new
+  deployment before promoting it. It was shown on staging to reject a
+  deployment without `EMAIL_PROVIDER` (`docs/email-delivery.md`, "Staging
+  tests", step 0).
+- Backups and a tested restore for MongoDB; `PAYMENT_CREDENTIALS_KEY` and
+  `SESSION_SECRET` escrowed. Production on a tier with managed backups
+  (Atlas Free has none; M10+ with Continuous Cloud Backup recommended), an
+  offsite encrypted export, media bucket versioning or copies, and one passed
+  restore drill. See `docs/backup-and-disaster-recovery.md`, section 9. None of
+  this is in place yet, and the real Atlas configuration has not been checked.
 - Monitoring and alerting on `[payments]`, `[customer-auth]`, `[security]` and
-  `[api] unhandled error` log lines.
+  `[api] unhandled error` log lines, and on failed platform email
+  (`login_code_email_failed`, `[forgot-password] reset email could not be sent`,
+  `[register] could not finish a registration`).
 - Legal pages (`/terms`, `/privacy`) reviewed; disclosure of payment and (if
   enabled) AI processors.
 - SaaS billing: either a real provider integrated and verified, or paid plans
   kept unavailable (`ALLOW_MANUAL_BILLING` off).
 - Live Razorpay (`ORDER_PAYMENTS_LIVE_ALLOWED=true`) only after a business
   decision and a completed test-mode run; refunds stay manual in Razorpay.
+- Payment key check **Verified** on staging and then production (Super Admin →
+  Settings, or `npm run payment-key-check -- status`). With stored Razorpay
+  secrets and no record, an operator must adopt the key with its escrow
+  fingerprint, as an approved action on each environment separately. The code
+  being deployed does not by itself mean production is verified.
 
 ## Known gaps (code)
 

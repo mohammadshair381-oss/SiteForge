@@ -12,10 +12,16 @@
  * `lib/env` module is imported dynamically and only on the Node.js runtime, so
  * server-only secrets are never evaluated in the edge (middleware) bundle.
  *
- * Email configuration is validated too: when `EMAIL_PROVIDER` is explicitly set
- * its requirements are checked at boot (production refuses `console`/`memory`
- * and requires Resend credentials). A production deploy that has not configured
- * email at all is allowed to boot and simply refuses to send until configured.
+ * Email configuration is validated too (`assertEmailStartupConfig`). In
+ * production a real provider is mandatory: an empty `EMAIL_PROVIDER`, `console`,
+ * `memory`, or incomplete or malformed Resend settings fail this hook, because
+ * password-reset codes (and every other email) cannot work
+ * without delivery. Next.js then answers requests with 500, but the process may
+ * keep running and print "Ready": this deliberately never exits, and deployments
+ * must rely on a hosting-platform health check of `/login` to keep traffic away.
+ * The check is structural and never contacts the provider.
+ * Outside production an explicitly set provider is checked and an empty one
+ * means `console`. See docs/email-delivery.md.
  */
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;

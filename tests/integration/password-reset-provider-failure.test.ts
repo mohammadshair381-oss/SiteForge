@@ -63,19 +63,19 @@ test("a provider outage never reports delivery and leaks no internal details", a
   const res = await callHandler(forgotPOST, makeRequest(FORGOT_URL, { email }));
   assert.equal(res.status, 200, "the public response stays generic and successful");
   const body = await res.json();
-  assert.deepEqual(body, { success: true });
+  assert.equal(body.codeRequired, true, "the same pending-code answer as any other address");
 
   const serialized = JSON.stringify(body);
   assert.ok(!serialized.includes("re_test_key_should_not_leak"));
   assert.ok(!serialized.includes("simulated provider outage"));
-  assert.ok(!/resend/i.test(serialized));
+  assert.ok(!/api\.resend\.com|EmailSendError|provider/i.test(serialized), "no provider detail");
 
-  // The token that could not be emailed is retired, so no usable link is left
+  // The code that could not be emailed is retired, so no usable code is left
   // behind and the password is untouched.
   assert.equal(
-    await AuthToken.countDocuments({ user: user._id, type: "password_reset", usedAt: null }),
+    await AuthToken.countDocuments({ user: user._id, type: "login_code", purpose: "reset", usedAt: null }),
     0,
-    "an undeliverable reset token must not stay active",
+    "an undeliverable reset code must not stay active",
   );
 
   const reloaded = await User.findById(user._id).select("+passwordHash");

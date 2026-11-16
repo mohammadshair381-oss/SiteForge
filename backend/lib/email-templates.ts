@@ -134,120 +134,53 @@ ${afterCta}
 </html>`;
 }
 
-export interface PasswordResetEmailInput {
-  /** Recipient display name, if known. User-controlled: escaped for HTML. */
-  name?: string | null;
-  resetUrl: string;
-  expiresInMinutes: number;
-}
-
-export function renderPasswordResetEmail(
-  input: PasswordResetEmailInput,
-): RenderedEmail {
-  const name = normalizeName(input.name);
-  const greetingHtml = name ? `Hi ${escapeHtml(name)},` : "Hi,";
-  const greetingText = name ? `Hi ${name},` : "Hi,";
-  const minutes = Math.max(1, Math.trunc(input.expiresInMinutes));
-
-  const subject = "Reset your SiteForge password";
-
-  const text = [
-    greetingText,
-    "",
-    "We received a request to reset the password for your SiteForge account. Open the link below to choose a new password:",
-    "",
-    input.resetUrl,
-    "",
-    `This link expires in ${minutes} minute${minutes === 1 ? "" : "s"} and can be used once. If you did not request a password reset, you can safely ignore this email and your password will not change.`,
-    "",
-    `— ${BRAND_NAME}`,
-  ].join("\n");
-
-  const html = renderLayout({
-    previewText: "Choose a new password for your SiteForge account.",
-    heading: "Reset your password",
-    paragraphsHtml: [
-      greetingHtml,
-      "We received a request to reset the password for your SiteForge account. Choose a new password using the button below.",
-    ],
-    ctaLabel: "Reset password",
-    ctaUrl: input.resetUrl,
-    afterCtaHtml: [
-      `This link expires in ${minutes} minute${minutes === 1 ? "" : "s"} and can be used once.`,
-      "If you did not request a password reset, you can safely ignore this email and your password will not change.",
-    ],
-  });
-
-  return { subject, text, html };
-}
-
-export interface EmailVerificationEmailInput {
-  /** Recipient display name, if known. User-controlled: escaped for HTML. */
-  name?: string | null;
-  verifyUrl: string;
-  expiresInHours: number;
-}
-
-export function renderEmailVerificationEmail(
-  input: EmailVerificationEmailInput,
-): RenderedEmail {
-  const name = normalizeName(input.name);
-  const greetingHtml = name ? `Hi ${escapeHtml(name)},` : "Hi,";
-  const greetingText = name ? `Hi ${name},` : "Hi,";
-  const hours = Math.max(1, Math.trunc(input.expiresInHours));
-
-  const subject = "Confirm your SiteForge email address";
-
-  const text = [
-    greetingText,
-    "",
-    "Confirm this email address to finish setting up your SiteForge account. Open the link below to verify it:",
-    "",
-    input.verifyUrl,
-    "",
-    `This link expires in ${hours} hour${hours === 1 ? "" : "s"} and can be used once. If you did not create a SiteForge account, you can safely ignore this email.`,
-    "",
-    `— ${BRAND_NAME}`,
-  ].join("\n");
-
-  const html = renderLayout({
-    previewText: "Confirm your email address to finish setting up SiteForge.",
-    heading: "Confirm your email address",
-    paragraphsHtml: [
-      greetingHtml,
-      "Confirm this email address to finish setting up your SiteForge account. Use the button below to verify it.",
-    ],
-    ctaLabel: "Verify email address",
-    ctaUrl: input.verifyUrl,
-    afterCtaHtml: [
-      `This link expires in ${hours} hour${hours === 1 ? "" : "s"} and can be used once.`,
-      "If you did not create a SiteForge account, you can safely ignore this email.",
-    ],
-  });
-
-  return { subject, text, html };
-}
-
 export interface LoginCodeEmailInput {
   name?: string | null;
   /** Exactly six digits; never logged. */
   code: string;
   expiresInMinutes: number;
+  /** What the code is for. Defaults to signing in. */
+  purpose?: "login" | "signup" | "reset";
 }
 
-/** The code a platform account enters to finish signing in on a new device. */
+const CODE_EMAIL_WORDING = {
+  login: {
+    subject: "Your SiteForge sign-in code",
+    heading: "Your sign-in code",
+    preview: "Use this code to finish logging in to SiteForge.",
+    intro: "Someone is logging in to your SiteForge account. Enter this code to finish logging in:",
+    warning: "If you did not just try to log in, do not share this code with anyone. Someone may know your password: change it now from your account settings, or use \"Forgot your password?\" on the login page.",
+  },
+  signup: {
+    subject: "Your SiteForge confirmation code",
+    heading: "Confirm your email",
+    preview: "Use this code to finish creating your SiteForge account.",
+    intro: "Thanks for signing up to SiteForge. Enter this code to confirm your email and finish creating your account:",
+    warning: "If you did not sign up, you can ignore this email: the account is not confirmed without this code.",
+  },
+  reset: {
+    subject: "Your SiteForge password reset code",
+    heading: "Reset your password",
+    preview: "Use this code to choose a new SiteForge password.",
+    intro: "Someone asked to reset the password of your SiteForge account. Enter this code to choose a new password:",
+    warning: "If you did not ask for this, you can ignore this email: your password stays the same. Never share this code with anyone.",
+  },
+} as const;
+
+/** The code a platform account enters to sign in, finish signing up, or reset its password. */
 export function renderLoginCodeEmail(input: LoginCodeEmailInput): RenderedEmail {
   if (!/^\d{6}$/.test(input.code)) throw new Error("A sign-in code must be six digits");
+  const wording = CODE_EMAIL_WORDING[input.purpose ?? "login"];
   const name = normalizeName(input.name);
   const minutes = Math.max(1, Math.trunc(input.expiresInMinutes));
   const expiry = `This code expires in ${minutes} minute${minutes === 1 ? "" : "s"} and can be used once.`;
-  const warning = "If you did not just try to log in, do not share this code with anyone. Someone may know your password: change it now from your account settings, or use \"Forgot your password?\" on the login page.";
-  const subject = "Your SiteForge sign-in code";
+  const warning = wording.warning;
+  const subject = wording.subject;
 
   const text = [
     name ? `Hi ${name},` : "Hi,",
     "",
-    "Someone is logging in to your SiteForge account from a device we have not seen before. Enter this code to finish logging in:",
+    wording.intro,
     "",
     `    ${input.code}`,
     "",
@@ -259,11 +192,11 @@ export function renderLoginCodeEmail(input: LoginCodeEmailInput): RenderedEmail 
   ].join("\n");
 
   const html = renderLayout({
-    previewText: "Use this code to finish logging in to SiteForge.",
-    heading: "Your sign-in code",
+    previewText: wording.preview,
+    heading: wording.heading,
     paragraphsHtml: [
       name ? `Hi ${escapeHtml(name)},` : "Hi,",
-      "Someone is logging in to your SiteForge account from a device we have not seen before. Enter this code to finish logging in:",
+      escapeHtml(wording.intro),
     ],
     bodyHtml: `<p style="margin:8px 0 24px;font-size:32px;line-height:1.2;font-weight:700;letter-spacing:0.3em;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:${HEADING_COLOR};">${escapeHtml(input.code)}</p>`,
     afterCtaHtml: [escapeHtml(expiry), escapeHtml(warning)],

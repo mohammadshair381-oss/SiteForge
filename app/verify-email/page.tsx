@@ -1,21 +1,9 @@
-import { Suspense } from "react";
-import AuthShell from "@/components/auth/AuthShell";
-import VerifyEmailClient from "@/components/auth/VerifyEmailClient";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
+/**
+ * Email addresses are confirmed with an emailed six-digit code now (signup, or the first login), not
+ * a link. An old link lands here and is sent to log in, which emails a code. Nothing in the link is read.
+ */
 export default function VerifyEmailPage() {
-  return (
-    <AuthShell>
-      <Suspense
-        fallback={
-          <p role="status" className="text-sm text-slate-600">
-            Checking your verification link…
-          </p>
-        }
-      >
-        <VerifyEmailClient />
-      </Suspense>
-    </AuthShell>
-  );
+  redirect("/login");
 }

@@ -10,6 +10,8 @@ export interface AuthTokenDoc {
   expiresAt: Date;
   usedAt: Date | null;
   // --- `login_code` records only (lib/auth/login-challenge.ts) ---
+  /** What the code is for: signing in, finishing a signup, or resetting a password. Absent = `login`. */
+  purpose?: "login" | "signup" | "reset";
   /** Keyed hash of the current six-digit code. The code itself is never persisted. */
   codeHash?: string;
   /** When the current code stops working (the record itself lives until `expiresAt`). */
@@ -19,7 +21,7 @@ export interface AuthTokenDoc {
   /** Codes sent for this sign-in (the first one plus resends). */
   sends?: number;
   lastSentAt?: Date;
-  /** The new browser's device id; it gets the known-device marker once the code is right. */
+  /** Legacy: the browser id of records written while known-device markers existed. Unused now. */
   deviceId?: string;
   /** Keyed fingerprint of the password hash and the session version when the password was checked. */
   credential?: string;
@@ -29,8 +31,8 @@ export interface AuthTokenDoc {
 }
 
 /**
- * Single-use action tokens backing password reset and email verification, and
- * pending new-device sign-ins (`login_code`).
+ * Pending emailed codes (`login_code`, with a `purpose`: login, signup or password reset), and the
+ * legacy single-use link tokens (`password_reset`, `email_verification`) that no route issues any more.
  *
  * Only a SHA-256 hash of the raw token is stored (`select: false` so it is not
  * loaded by default); the raw value is returned once to the caller that needs
@@ -49,6 +51,7 @@ const authTokenSchema = new Schema<AuthTokenDoc>(
     tokenHash: { type: String, required: true, unique: true, select: false },
     expiresAt: { type: Date, required: true },
     usedAt: { type: Date, default: null },
+    purpose: { type: String, enum: ["login", "signup", "reset"] },
     codeHash: { type: String, select: false, match: /^[A-Za-z0-9_-]{43}$/ },
     codeExpiresAt: { type: Date },
     attempts: { type: Number, min: 0 },

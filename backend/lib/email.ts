@@ -14,8 +14,10 @@ import { env, type Env } from "./env";
  * - The memory transport is refused in production.
  * - The console transport is refused in production (it must never masquerade as
  *   real delivery), and it never logs message bodies, links or tokens.
- * - When production email is not configured, `sendEmail` fails clearly instead
- *   of pretending to succeed.
+ * - Production fails its startup check without a real provider (`assertEmailStartupConfig`,
+ *   called from `instrumentation.ts`; requests then answer 500, while the process may keep
+ *   running, so deployments need a health check). Should a process skip that hook anyway,
+ *   `sendEmail` still fails clearly instead of pretending to succeed.
  * - A failed provider request throws (and is therefore distinguishable from a
  *   successful `{ id }` result). There are no automatic retries, which could
  *   produce duplicate sends.
@@ -130,6 +132,37 @@ function isHttpsUrl(value: string): boolean {
   }
 }
 
+/**
+ * Links are built as `${APP_URL}/reset-password#token=…`, so APP_URL must be a bare base address:
+ * a query or fragment would swallow the token, and credentials in it would be mailed to everyone.
+ */
+function isBaseUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return !url.username && !url.password && !url.search && !url.hash;
+  } catch {
+    return false;
+  }
+}
+
+/** Control characters (including CR/LF) never belong in a configured value. */
+function hasControlCharacter(value: string): boolean {
+  for (let i = 0; i < value.length; i += 1) {
+    const code = value.charCodeAt(i);
+    if (code < 0x20 || code === 0x7f) return true;
+  }
+  return false;
+}
+
+/**
+ * Structural check only: Resend API keys start with `re_`. A value with spaces, quotes or another
+ * prefix is a copy-paste mistake (for example a key pasted with its surrounding quotes). Passing
+ * this check says nothing about whether the key is active or the sender domain is verified.
+ */
+function isPlausibleResendKey(value: string): boolean {
+  return value.startsWith("re_") && value.length >= 10 && !/[\s"'`]/.test(value) && !hasControlCharacter(value);
+}
+
 // ---------------------------------------------------------------------------
 // Configuration resolution
 // ---------------------------------------------------------------------------
@@ -141,11 +174,13 @@ function isHttpsUrl(value: string): boolean {
  *
  * Provider rules:
  * - empty provider: console outside production, `unconfigured` in production
- *   (fail-closed) so an unconfigured deploy never pretends to deliver;
+ *   (fail-closed) so an unconfigured deploy never pretends to deliver; the
+ *   production startup check fails in that state (`assertEmailStartupConfig`);
  * - `console`: development only;
  * - `memory`: development/test only;
- * - `resend`: requires EMAIL_API_KEY and EMAIL_FROM, and, in production, a valid
- *   absolute HTTPS APP_URL.
+ * - `resend`: requires a Resend-shaped EMAIL_API_KEY and a valid EMAIL_FROM; APP_URL,
+ *   when set, must be a bare absolute base address, and in production it is
+ *   required and must be HTTPS.
  */
 export function resolveEmailConfig(config: EmailEnv): ResolvedEmailConfig {
   const production = isProductionEnv(config.NODE_ENV);
@@ -185,16 +220,21 @@ export function resolveEmailConfig(config: EmailEnv): ResolvedEmailConfig {
       "EMAIL_API_KEY is required for the 'resend' provider",
     );
   }
+  if (!isPlausibleResendKey(apiKey)) {
+    throw new EmailConfigurationError(
+      "EMAIL_API_KEY does not look like a Resend API key: it must start with 're_' and contain no spaces or quotes",
+    );
+  }
 
   const from = config.EMAIL_FROM.trim();
-  if (!from || !isPlausibleEmail(from)) {
+  if (!from || hasControlCharacter(from) || !isPlausibleEmail(from)) {
     throw new EmailConfigurationError(
       "EMAIL_FROM must be a valid sender address (e.g. 'SiteForge <no-reply@your-domain>')",
     );
   }
 
   const replyTo = config.EMAIL_REPLY_TO.trim();
-  if (replyTo && !isPlausibleEmail(replyTo)) {
+  if (replyTo && (hasControlCharacter(replyTo) || !isPlausibleEmail(replyTo))) {
     throw new EmailConfigurationError(
       "EMAIL_REPLY_TO must be a valid email address when set",
     );
@@ -211,6 +251,10 @@ export function resolveEmailConfig(config: EmailEnv): ResolvedEmailConfig {
     throw new EmailConfigurationError(
       "APP_URL must be an absolute HTTPS URL in production",
     );
+  } else if (!isBaseUrl(appUrl)) {
+    throw new EmailConfigurationError(
+      "APP_URL must be the application's base address, without credentials, a query or a fragment",
+    );
   }
 
   return {
@@ -224,13 +268,35 @@ export function resolveEmailConfig(config: EmailEnv): ResolvedEmailConfig {
 }
 
 /**
- * Startup validation entry point (called from `instrumentation.ts`). Throws when
- * email is *explicitly* configured but invalid for the environment; a production
- * deploy that has not configured email at all is allowed to boot (email simply
- * refuses to send until configured).
+ * Startup validation entry point (called from `instrumentation.ts`).
+ *
+ * - Any environment: an explicitly configured provider must be valid for it.
+ * - Production: a real provider is MANDATORY. Every platform account needs an emailed code to sign
+ *   in from a new device, and verification and password resets are email-only, so a production
+ *   server without delivery would lock out Super Admins, owners, managers and staff. Failing here
+ *   makes that a deploy-time failure instead of a lockout discovered at the first sign-in: Next.js
+ *   then answers 500 to requests, though the process may keep running, so the hosting platform's
+ *   health check of `/login` is what keeps traffic away (docs/email-delivery.md). Never exit here.
+ *
+ * The check is local and structural (names, formats, required values). It never contacts the
+ * provider, so passing it does not prove that the key is active, the sender domain is verified or
+ * mail will arrive. Messages name variables only, never their values.
  */
-export function assertEmailStartupConfig(): void {
-  resolveEmailConfig(env());
+export function assertEmailStartupConfig(config: EmailEnv = env()): void {
+  const resolved = resolveEmailConfig(config);
+  if (!isProductionEnv(config.NODE_ENV) || resolved.kind === "resend") return;
+
+  // In production `console` and `memory` already threw above, so only an empty provider is left.
+  const missing = [
+    "EMAIL_PROVIDER",
+    ...(config.EMAIL_API_KEY.trim() ? [] : ["EMAIL_API_KEY"]),
+    ...(config.EMAIL_FROM.trim() ? [] : ["EMAIL_FROM"]),
+    ...(config.APP_URL.trim() ? [] : ["APP_URL"]),
+  ];
+  throw new EmailConfigurationError(
+    `Email delivery is required in production: set EMAIL_PROVIDER=resend with EMAIL_API_KEY, EMAIL_FROM and an HTTPS APP_URL ` +
+      `(missing: ${missing.join(", ")}). Without it no password-reset code (or any other email) can be sent.`,
+  );
 }
 
 // ---------------------------------------------------------------------------

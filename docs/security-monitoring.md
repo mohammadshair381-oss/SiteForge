@@ -17,11 +17,10 @@
   request, so all existing sessions of the user stop working immediately.
 - `deactivate`, both role changes and `force_signout` also increment
   `User.deviceTrustVersion` (no default; absent = 0), in the same audited write
-  (`after.trustedDevicesRevoked: true`). It is part of the known-device
-  fingerprint, so every known-device marker and every pending new-device sign-in
-  of the user stops working: each browser must enter an emailed code again.
-  `reactivate` does not raise it (the deactivation already did). An ordinary
-  logout never touches it, so known devices survive a logout.
+  (`after.trustedDevicesRevoked: true`). It is part of the credential
+  fingerprint kept by every pending reset code, so every pending password reset
+  code of the user stops working. `reactivate` does not raise it (the
+  deactivation already did). An ordinary logout never touches it.
 - Business memberships (`owner` / `manager` / `staff`) are never read or
   changed; a deactivated owner's storefronts keep running.
 - Lock-out protection: no action on your own account (`409 self_action`); the
@@ -47,14 +46,14 @@ Events written before scopes existed have no `scope` and count as platform.
 | `admin_login` | platform | A super admin signed in |
 | `admin_reauth_failed` | platform | Wrong password when confirming a role change |
 | `customer_login_failed` (no reason) | storefront | Customer sign-in failed. Unknown, wrong-password and inactive are deliberately NOT distinguished and no account lookup is added, so response timing still cannot reveal whether an account exists. |
-| `password_reset_requested` | both | Reset link requested (platform: user id when the account exists; storefront: email digest only, because the account lookup happens after the response) |
-| `password_reset_failed` (`invalid_token` / `reset_conflict`) | both | Reset refused (invalid, expired or used link; account changed meanwhile) |
-| `password_reset_completed` | both | Password changed through a reset link (user or customer id) |
+| `password_reset_requested` | both | Reset requested (platform: a code; storefront: a link. Platform: user id when the account exists; storefront: email digest only, because the account lookup happens after the response) |
+| `password_reset_failed` (platform: `wrong_code` / `expired_code` / `too_many_attempts` / `account_changed` / `reset_conflict`; storefront: `invalid_token` / `reset_conflict`) | both | Reset refused (wrong, expired or used code or link; account changed meanwhile) |
+| `password_reset_completed` | both | Password changed through a reset code (platform) or link (storefront) |
 | `customer_session_revoked` (`token_version_mismatch` / `inactive_account` / `account_missing`) | storefront | A correctly signed customer session of this store was used after logout-everywhere, a password reset, deactivation or deletion |
 | `platform_session_revoked` (same reasons) | platform | A correctly signed platform session was used after sign-out everywhere, a role change, a password reset, deactivation or deletion (recorded in `requireUser`, throttled, after the response) |
-| `email_verification_failed` (`invalid_token` / `wrong_password` / `inactive_account`) | both | A verification link was refused (customers also need the account password) |
+| `email_verification_failed` (`invalid_token` / `wrong_password` / `inactive_account`) | storefront | A customer verification link was refused (customers also need the account password). Platform addresses are confirmed by codes (`login_code_failed`). |
 | `password_change_failed` (`wrong_password`) | platform | A signed-in user entered a wrong current password (bounded by the 5 per 15 minutes limit) |
-| `login_code_failed` (`wrong_code` / `expired_code` / `too_many_attempts` / `account_changed`) | platform | A new-device sign-in code was refused, or the account changed (password, sign-out everywhere, deactivation) between the password and the code |
+| `login_code_failed` (`wrong_code` / `expired_code` / `too_many_attempts` / `account_changed`) | platform | Historical only: written while login and signup used emailed codes. Nothing writes it now. |
 
 Data minimisation:
 - Never stored: passwords, raw email addresses, raw IP addresses, user agents,
@@ -86,84 +85,66 @@ expired session signatures (they cannot be attributed to an account), and
 email-verification resend requests. Without `TRUSTED_IP_HEADER` (development)
 no source fingerprint is stored.
 
-## Platform sign-in limits
+## Platform signup and login: email and password only
 
-`POST /api/auth/login`. All are shared across instances, and their keys are HMAC-hashed, so no address or email is stored.
+Signup (`POST /api/auth/register`) and login (`POST /api/auth/login`) use email and password only:
+there is no emailed code, no "remembered browser" and no email confirmation. This is an owner
+decision, with these consequences:
+
+- **A stolen or guessed password alone opens the account**, Super Admins included. The limits below
+  slow guessing; they do not stop someone who already has the password.
+- **Email addresses are not proven.** Anyone can sign up with an address they do not own. The real
+  owner of that address can take the account over with a password reset (the code goes to their
+  mailbox), which ends every session. Team invitations are still safe: their token is emailed to the
+  invited address, so only its owner can accept.
+- **Signup reveals whether an address is registered**: a registered address gets `409 email_taken`,
+  because signing up signs in at once. Login still answers the same for a wrong password and an
+  unknown or inactive address.
+- New accounts have no `emailVerifiedAt`; logging in clears an old `null` (accounts left unconfirmed
+  by the earlier code-based signup), so `requireVerifiedEmail` no longer blocks anyone who can log in.
+
+### Login limits
+
+All are shared across instances, and their keys are HMAC-hashed, so no address or email is stored.
 
 | Limit | Counts | Purpose |
 |---|---|---|
 | 10 per 5 minutes, per source | Every attempt | Slows one source trying many accounts |
 | 5 per 5 minutes, per (account, source) | Failures | One source cannot use up an account's budget for everyone |
 | 50 per 5 minutes, per account | Failures | Bounds guessing spread over many addresses |
-| 5 per 15 minutes, per known device | Failures | Replaces the two above for a browser that has signed in to this account before |
+| 5 signups per 15 minutes, per client address | Every signup | Slows mass account creation |
 
 - **Source** is one IPv4 address or one IPv6 /64, from `TRUSTED_IP_HEADER` only (`rateLimitSourceKey`), so rotating addresses
   inside a /64 gives no new budget. Wider IPv6 ranges are held back by the account-wide limit.
 - **Only failures count** against the account: a unit is reserved before the password check, so guesses at the same
-  moment cannot overshoot, and it is returned after a full sign-in. A correct password on an unconfirmed account stays
-  counted, because that answer must look like a wrong password.
-- **Known device** (`backend/lib/auth/platform-device.ts`, cookie `__Host-swb_device` in production): after the OWASP device cookie
-  pattern. It is issued after a sign-in completed with the emailed code (see below), refreshed by each sign-in from that browser,
-  and bound to the email and the current password, so changing the password outdates it. It never replaces the password check.
-  It chooses the failure budget, so people guessing elsewhere cannot lock an owner out of a browser they have already used, and
-  it lets that browser skip the new-device code. A stolen marker is therefore worth something only together with the password,
-  and only until the password changes.
-- **Nothing reveals an account:** an unknown address spends and answers exactly as a real one does, and the answer is the
-  same for a wrong password, an unknown address and an unconfirmed account.
-- **What remains:** someone sustaining 50 failures every 5 minutes from about 10 or more sources can still delay a sign-in
-  from a browser that has never signed in to that account. Each window lasts at most 5 minutes, it never locks permanently, and a
-  password reset does not depend on it. Customer accounts have their own limits (`docs/customer-accounts.md`).
+  moment cannot overshoot, and it is returned after the right password.
+- **What remains:** someone sustaining 50 failures every 5 minutes from about 10 or more sources can delay any login to
+  that account. Each window lasts at most 5 minutes and it never locks permanently; a password reset does not depend on it.
+  Customer accounts have their own limits (`docs/customer-accounts.md`).
 
-## New-device sign-in codes
+## Password reset codes
 
-`backend/lib/auth/login-challenge.ts`, routes `POST /api/auth/login` (password), `POST /api/auth/login/code` and
-`POST /api/auth/login/code/resend`. Applies to every platform account (super admins, owners, managers, staff), whatever its
-role. Storefront customers are not affected (`docs/customer-accounts.md`).
+`backend/lib/auth/login-challenge.ts` and `backend/lib/auth/code-verification.ts`. Routes:
+`POST /api/auth/password/forgot` and `POST /api/auth/password/reset`. The one emailed code left for platform accounts.
 
-- **When:** the password is right and the address confirmed, but the browser has no valid known-device marker for this account,
-  its current password and its trusted-device generation. The answer is
-  `202 {codeRequired, expiresInSeconds, resendInSeconds, resendsLeft, attemptsAllowed, attemptsLeft}` and a pending sign-in
-  cookie; **no session and no marker**. A valid marker keeps the old behaviour (200, session, marker).
-- **Pending sign-in:** 256 random bits in `swb_login_challenge` (`__Host-` in production; httpOnly, SameSite=Strict, 20 minutes).
-  Stored as an `AuthToken` of type `login_code` (existing collection and indexes) holding the SHA-256 of that value, never the
-  value. A newer sign-in of the same account cancels older pending ones. The generic action-token helpers refuse `login_code`.
+- **Asking:** `/password/forgot` answers the same for an active, an unknown and an inactive address, with a pending code
+  cookie (`swb_reset_challenge`, `__Host-` in production; httpOnly, SameSite=Strict, 20 minutes). Only an active account's
+  code is real and emailed (after the response); the others are decoys bound to an id no account has, whose code never
+  matches and whose answers equal a wrong code's. 3 requests per address and 10 per client address per 15 minutes; asking
+  again replaces the code. A code the email could not deliver is cancelled.
+- **Setting the password:** `/password/reset {code, password}` sets the new password, raises `tokenVersion` (every session
+  ends) and `deviceTrustVersion` (every other pending reset code ends), and never signs in.
 - **Code:** six digits from `crypto.randomInt`, leading zeros kept, stored only as an HMAC (key derived from `SESSION_SECRET`)
-  over the pending sign-in, the account and the code. Valid 5 minutes and single use. A pending sign-in has **5 guesses in total**,
-  across its resends. A guess is reserved atomically before the comparison, and finishing is a second conditional write, so
-  parallel requests can neither exceed 5 guesses nor use one code twice. Codes are never in an API answer, a URL, browser
-  storage or a log.
-- **Finishing:** only a right code, sent with the pending sign-in cookie, creates the session and the marker, and only while the
-  account is still active, confirmed, on the same password, session version and trusted-device generation as at the password
-  check (checked before any guess is compared).
-- **Resend:** replaces the code (the old one stops working in the same write) and **keeps the guesses already made**; once a
-  minute, 3 times per sign-in. A pending sign-in that used its 5 guesses gets no new code (`429 code_attempts_exceeded`): the
-  person logs in again, which the account budget below bounds.
-- **Account budget:** 10 wrong codes per account per day (fixed UTC-day window, `login-code:fail:account:<id>`), across all its
-  pending sign-ins. A unit is reserved before each comparison and given back unless a wrong code was really compared, so a right
-  code costs nothing and parallel guesses cannot overshoot. When it is used up, checking a code and emailing a new one both answer
-  `429 login_code_locked` (with `Retry-After`) until the day ends; known devices are unaffected. Only someone who gave the right
-  password can reach it, and the password step's answers do not change, so it reveals no account.
-- **Other limits:** 5 emailed codes per account per 15 minutes (first codes and resends together); 30 code checks and 10 resend
-  requests per source per 15 minutes; the password limits above still apply. A right password returns its failure unit as
-  before, at the password step.
-- **Monitoring:** every refused code is a `login_code_failed` event (with the account's email digest and the source digest). They
-  are counted on `/admin/security` ("Wrong sign-in codes") and join password failures in the targeted-account (5+ in an hour,
-  also an admin overview alert) and busy-source alerts.
-- **Email:** sent through `sendEmail` before answering (template `renderLoginCodeEmail`: code, expiry, warning). If it cannot be
-  sent, the pending sign-in is cancelled and the answer is `503 code_not_sent`.
+  over the pending value, the account, the code and its purpose. Valid 5 minutes and single use, 5 guesses per pending code,
+  each reserved atomically before the comparison. Codes are never in an API answer, a URL, browser storage or a log.
+- **Account budget:** 10 wrong reset codes per account per day (fixed UTC-day window), reserved before each comparison and
+  keyed by the pending code's account id, so a decoy never spends a real account's budget.
+- **Monitoring:** `password_reset_requested`, `password_reset_failed` (`wrong_code` / `expired_code` / `too_many_attempts` /
+  `account_changed` / `reset_conflict`) and `password_reset_completed`, with digests only.
 - **Development:** with `EMAIL_PROVIDER=console` no body is shown, so `AUTH_LOG_OTP=true` prints
-  `[auth] Development sign-in code for j***@example.com: 123456` in the server terminal. It needs ALL of: `NODE_ENV` exactly
-  `development`, `AUTH_LOG_OTP` exactly `true`, `EMAIL_PROVIDER` explicitly `console` or `memory` (an empty provider is not
-  enough), and no `VERCEL` / `VERCEL_ENV`. Production, staging, tests and real delivery never print a code
-  (`backend/lib/auth/dev-login-code.ts`).
-- **Other ways in:** confirming an email address (link plus password) still signs in directly: the link proves the mailbox, as
-  the code does. It sets no marker, so the next sign-in from that browser asks for a code. Changing a password keeps the
-  current session. A password reset never signs in.
-- **Revoking known devices:** a password change or reset outdates every marker, and so do the admin actions `force_signout`,
-  `deactivate`, `grant_super_admin` and `revoke_super_admin` (`User.deviceTrustVersion`, see "Platform account actions"). An
-  ordinary logout does not, by design: the marker also keeps the owner's own browser out of an account-wide sign-in lock.
-- **Known limits:** no per-device revocation (all markers of an account go together). Markers issued before this feature (any
-  browser that signed in within 90 days) count as known devices until one of the above happens.
+  `[auth] Development password reset code for j***@example.com: 123456` in the server terminal. It needs ALL of: `NODE_ENV`
+  exactly `development`, `AUTH_LOG_OTP` exactly `true`, `EMAIL_PROVIDER` explicitly `console` or `memory`, and no `VERCEL` /
+  `VERCEL_ENV`. Production, staging, tests and real delivery never print a code (`backend/lib/auth/dev-login-code.ts`).
 
 ## Database prerequisites (approved operation)
 

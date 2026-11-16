@@ -162,7 +162,7 @@ test("overview counts per status and keeps manual, provider, online and COD mone
   const res = await get(overviewRoute.GET, "/api/admin/overview", headers);
   assert.equal(res.status, 200);
   const o = res.body;
-  assert.deepEqual(o.totals.businesses, { draft: 0, published: 2, suspended: 1 });
+  assert.deepEqual(o.totals.businesses, { draft: 0, published: 2, suspended: 1, deleted: 0 });
   assert.equal(o.totals.orders.paid, 3);
   assert.equal(o.totals.orders.pending, 1);
   assert.equal(o.totals.orders.cancelled, 1);

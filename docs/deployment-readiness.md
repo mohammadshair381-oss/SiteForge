@@ -131,13 +131,26 @@ files, no contents) that no source file is ignored.
 - Production values: `EMAIL_PROVIDER=resend`, `EMAIL_API_KEY` (Resend key),
   `EMAIL_FROM` on a domain verified in Resend (DNS records), `APP_URL` as an
   absolute `https://` URL. `console`/`memory` are refused in production.
+- These are mandatory, since password reset needs an emailed code (signup and
+  login use email and password only). Without them the startup check fails and requests answer HTTP
+  500. The process may keep running and print "Ready", so that is not a sign of
+  health. The check is structural only; see `docs/email-delivery.md` for the
+  required health check, staging tests and outages.
 - Resend free: 100 emails/day, 3,000/month; needs a domain you own.
 
 ## 8. Production env validation & trusted IP header — configuration, Approval
 
 - Startup validation already exists (`instrumentation.ts` → `assertStartupEnv`,
   `assertEmailStartupConfig`); a production boot without `TRUSTED_IP_HEADER`
-  makes rate-limited endpoints return 503.
+  makes rate-limited endpoints return 503. A failed startup check (for example
+  no valid Resend configuration) makes requests answer HTTP 500 but does not
+  stop the process: `next start` may still print "Ready".
+- **Required:** a health or readiness check in the hosting platform that
+  requests `/login` and requires HTTP 200, so an instance that fails it is
+  marked unhealthy and gets no traffic (on serverless hosting: check the new
+  deployment before promoting it). SiteForge does not configure this; the
+  operator must. `/login` also needs MongoDB, so the check covers the database
+  too. See `docs/email-delivery.md`, "Required: a deployment health check".
 - On Vercel set `TRUSTED_IP_HEADER=x-vercel-forwarded-for`. Vercel overwrites
   `X-Forwarded-For` and does not forward external IPs (anti-spoofing);
   `x-real-ip` carries the same value, and `x-vercel-forwarded-for` stays
@@ -150,6 +163,22 @@ files, no contents) that no source file is ignored.
   `ALLOW_MANUAL_BILLING` unset.
 - After deploy: `curl -i https://<host>/api/auth/login` must not return 503, and
   repeated requests must eventually return 429.
+
+## 9. Backups, restore and key escrow — configuration, Approval
+
+- Nothing exists yet: no backup tooling in the repository, no tested restore,
+  no key escrow, and the real Atlas tier and backup settings are unknown.
+  Atlas Free (M0) has no managed backups at all.
+- Before launch: managed backups (M10+ with Continuous Cloud Backup
+  recommended), an offsite encrypted export, `PAYMENT_CREDENTIALS_KEY` and
+  `SESSION_SECRET` escrowed with recorded fingerprints, and one passed restore
+  drill into an isolated cluster. A snapshot restore wipes its target cluster,
+  so never restore onto production except as the deliberate recovery decision.
+- A lost or different `PAYMENT_CREDENTIALS_KEY` makes every stored Razorpay
+  secret unreadable, and nothing warns at startup. A different `SESSION_SECRET`
+  resets coupon and guest-COD limits stored as keyed hashes and signs everyone
+  out.
+- Plan, runbook and drill: `docs/backup-and-disaster-recovery.md`.
 
 ## Version control — recommendation, Approval
 
