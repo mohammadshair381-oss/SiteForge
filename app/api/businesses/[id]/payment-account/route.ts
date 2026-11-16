@@ -6,6 +6,7 @@ import { assertSameOriginJsonRequest } from "@/lib/auth/customer-accounts";
 import { isOrderOnlinePaymentsEnabled, isOrderPaymentsLiveAllowed } from "@/lib/env";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { encryptCredential, isPaymentCredentialsKeyConfigured } from "@/lib/payments/credentials-crypto";
+import { assertPaymentKeyForEncryption } from "@/lib/payments/key-check";
 import { keyIdMatchesMode } from "@/lib/payments/razorpay";
 import { BusinessPaymentAccount, type BusinessPaymentAccountDoc } from "@/models/BusinessPaymentAccount";
 
@@ -75,6 +76,9 @@ export async function PUT(request: Request, context: RouteContext) {
     if (!keyIdMatchesMode(input.keyId, input.mode)) {
       throw new HttpError(422, `The key id must be a Razorpay ${input.mode}-mode key (rzp_${input.mode}_…)`, "invalid_key_id");
     }
+    // Last check before writing: secrets are encrypted only under a key proven to be the original
+    // (or the first key ever used). Anything else answers 503 and the stored account is untouched.
+    await assertPaymentKeyForEncryption();
 
     const now = new Date();
     const existing = await BusinessPaymentAccount.findOne({ business: membership.business, provider: "razorpay" }).select("_id");

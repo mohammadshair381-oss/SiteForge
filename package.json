@@ -15,7 +15,8 @@
     "test:staging-ai": "node --import ./tests/integration/helpers/mock-next-headers-setup.ts --import tsx --test tests/staging/gemini-staging.test.ts",
     "seed": "tsx backend/scripts/seed.ts",
     "create-admin": "tsx backend/scripts/create-admin.ts",
-    "domain-migration": "tsx backend/scripts/domain-migration.ts"
+    "domain-migration": "tsx backend/scripts/domain-migration.ts",
+    "payment-key-check": "tsx backend/scripts/payment-key-check.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",

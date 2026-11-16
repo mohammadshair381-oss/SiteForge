@@ -25,6 +25,7 @@ import { PaymentDispute } from "@/models/PaymentDispute";
 import { WebsiteProposal } from "@/models/WebsiteProposal";
 import { AiUsage } from "@/models/AiUsage";
 import { AiConsentEvent } from "@/models/AiConsentEvent";
+import { PaymentKeyCheck } from "@/models/PaymentKeyCheck";
 
 const ALL_MODELS = [
   RateLimit,
@@ -54,6 +55,9 @@ const ALL_MODELS = [
   WebsiteProposal,
   AiUsage,
   AiConsentEvent,
+  // The payment-key check record: cleared with the payment accounts it describes, so a test
+  // that picks a new random key never meets a record written with an earlier test's key.
+  PaymentKeyCheck,
 ];
 
 export async function connectTestDB(): Promise<void> {

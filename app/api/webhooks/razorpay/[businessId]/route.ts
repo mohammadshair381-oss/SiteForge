@@ -5,6 +5,7 @@ import { verifyWebhookSignature, RazorpayApiError } from "@/lib/payments/razorpa
 import { confirmPaymentLink, recordPaymentFailure, webhookSecretOf } from "@/lib/payments/order-payments";
 import { syncRefundFromProvider } from "@/lib/payments/order-refunds";
 import { syncDisputeFromProvider } from "@/lib/payments/disputes";
+import { checkPaymentKey, isBlockingPaymentKeyState } from "@/lib/payments/key-check";
 import { BusinessPaymentAccount } from "@/models/BusinessPaymentAccount";
 
 export const runtime = "nodejs";
@@ -54,6 +55,12 @@ export async function POST(request: Request, context: RouteContext) {
     if (!mongoose.isValidObjectId(businessId)) throw unauthorized();
 
     await dbConnect();
+    // A wrong or unverifiable payment key is a temporary failure for EVERY request, decided before
+    // any account is looked up: Razorpay delivers the event again later, and the answer never
+    // reveals which businesses have an account.
+    if (isBlockingPaymentKeyState((await checkPaymentKey()).state)) {
+      throw new HttpError(503, "Temporarily unavailable", "temporarily_unavailable", { "Retry-After": "300" });
+    }
     const account = await BusinessPaymentAccount.findOne({
       business: new mongoose.Types.ObjectId(businessId),
       provider: "razorpay",

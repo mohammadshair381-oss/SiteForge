@@ -4,6 +4,7 @@ import { resolveBusinessByHost } from "@/lib/tenant";
 import { enforceOrderReadRateLimit } from "@/lib/storefront-rate-limit";
 import { verifyPaymentLinkCallbackSignature, RazorpayApiError } from "@/lib/payments/razorpay";
 import { confirmPaymentLink, keySecretOf } from "@/lib/payments/order-payments";
+import { checkPaymentKey, isBlockingPaymentKeyState } from "@/lib/payments/key-check";
 import { BusinessPaymentAccount } from "@/models/BusinessPaymentAccount";
 import { OrderPayment } from "@/models/OrderPayment";
 
@@ -56,6 +57,8 @@ export async function GET(request: Request) {
     .select("+keySecretEnc +webhookSecretEnc")
     .lean();
   if (!account?.keySecretEnc) return redirectTo(orderId, "pending");
+  // A wrong or unverifiable payment key: nothing is decrypted; the webhook confirms the payment later.
+  if (isBlockingPaymentKeyState((await checkPaymentKey()).state)) return redirectTo(orderId, "pending");
 
   let valid = false;
   try {

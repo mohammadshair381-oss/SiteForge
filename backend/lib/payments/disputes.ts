@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { HttpError } from "@/lib/api";
 import { ADMIN_REASON_MIN, runAuditedAdminAction } from "@/lib/admin-audit";
 import { decryptCredential } from "@/lib/payments/credentials-crypto";
+import { assertPaymentKeyUsable } from "@/lib/payments/key-check";
 import { fetchDispute, type FetchLike } from "@/lib/payments/razorpay";
 import { BusinessPaymentAccount } from "@/models/BusinessPaymentAccount";
 import "@/models/Business";
@@ -46,6 +47,8 @@ export async function syncDisputeFromProvider(input: {
   const business = new mongoose.Types.ObjectId(input.businessId);
   const account = await BusinessPaymentAccount.findOne({ business, provider: "razorpay" }).select("+keySecretEnc").lean();
   if (!account?.keySecretEnc) return { outcome: "no_credentials" };
+  // Before decrypting: a wrong or unverifiable key answers 503, so the event is delivered again later.
+  await assertPaymentKeyUsable();
 
   const remote = await fetchDispute({ keyId: account.keyId, keySecret: decryptCredential(account.keySecretEnc) }, input.disputeId, input.fetchImpl);
   const status = normaliseStatus(String(remote.status));

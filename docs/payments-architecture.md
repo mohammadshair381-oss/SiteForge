@@ -45,6 +45,92 @@ Encryption (`backend/lib/payments/credentials-crypto.ts`):
   with the current one.
 - A missing/invalid key fails closed: online payment is hidden from shoppers
   and connecting returns `503 payment_encryption_unconfigured`.
+- A well-formed but **wrong** key is caught by the payment key check (next
+  section), before anything is decrypted or re-encrypted.
+
+### Payment key check
+
+`backend/lib/payments/key-check.ts`, `backend/models/PaymentKeyCheck.ts`. One
+immutable record, `_id: "payment-credentials:v1"` in `paymentkeychecks`, holds
+a fixed **public** label encrypted with AES-256-GCM under
+`PAYMENT_CREDENTIALS_KEY`, with its own associated data, so a store's
+ciphertext can never pass as the check. It also holds a non-secret 16-hex
+fingerprint of that key (the formula in `docs/backup-and-disaster-recovery.md`,
+section 3). It never holds a store's credentials and refers to no store.
+
+- **No update or replace path.** It is created only by an insert on the fixed
+  `_id`, so a second writer gets a duplicate-key error. Every update and replace
+  operation is refused by the model.
+- **No index operation.** It is read only by `_id`. `autoIndex` and
+  `autoCreate` are off; the collection appears with the first insert.
+- **States** (`checkPaymentKey()`):
+
+  | State | Meaning | Effect |
+  |---|---|---|
+  | `unconfigured` | No usable key | As before: online payment off |
+  | `verified` | The record opens with this key | Normal |
+  | `mismatch` | The record was read, and this key does not open it | **Blocks** |
+  | `check_unreadable` | The record exists but cannot be checked (shape, version) | **Blocks** |
+  | `no_check_no_data` | No record, and no stored encrypted secrets | The first connection creates the record (bootstrap) |
+  | `unverified_legacy` | No record, but encrypted secrets exist | Payments keep working, with a warning; connecting or reconnecting is refused until the key is adopted |
+  | `unknown` | The database could not be read | **Blocks**, temporarily. Never reported as a mismatch, never cached, nothing written |
+
+- **Cache:** `verified` is kept for as long as the same key is configured (a
+  different key is checked again at once). `mismatch`, `check_unreadable` and
+  `unverified_legacy` are checked again after 60 seconds. `unknown` and
+  `no_check_no_data` are never cached.
+- **The checks:**
+  - **Checkout:** `getUsablePaymentAccount` answers "no usable account" in a
+    blocking state, only for stores that have an account, so online payment is
+    not offered.
+  - **Reconnecting:** `PUT /payment-account` calls
+    `assertPaymentKeyForEncryption` last, before writing. It passes only for
+    `verified`, or bootstraps from `no_check_no_data`. Anything else answers
+    `503 payment_key_unavailable`, and the stored account is not touched.
+  - **Refunds:** `createOrderRefund` checks before the hold, so in a blocking
+    state there is no hold, no refund record and no request.
+    `refreshOrderRefund` and `syncRefundFromProvider` check before any request.
+  - **Payment links and disputes:** `confirmPaymentLink` and
+    `syncDisputeFromProvider` check before decrypting.
+    `closeOpenPaymentLinks` skips its (best-effort) cancellation.
+  - **Webhook:** in a blocking state it answers `503 temporarily_unavailable`
+    with `Retry-After` to **every** request, before any account is looked up,
+    so Razorpay delivers the event again and the answer never reveals which
+    businesses have an account.
+  - **Return route:** shows "pending" without decrypting.
+- **Who sees what:** owners and shoppers only ever see the generic
+  `payment_key_unavailable` message. The state and both fingerprints are on
+  Super Admin → Settings and in the operator command. The fixed log events are
+  `payment_key_mismatch`, `payment_key_check_unreadable`,
+  `payment_key_unverified` and `payment_key_check_unavailable` (error class
+  only).
+- **Adoption** (an installation that stored secrets before this check existed):
+  an **approved operator action**, staging first and production separately.
+
+  ```bash
+  npm run payment-key-check -- status
+  npm run payment-key-check -- adopt --expected-fingerprint <fingerprint recorded with the key escrow>
+  ```
+
+  `status` prints only the state, both fingerprints and the number of accounts
+  with stored secrets. `adopt` refuses, writing nothing, when:
+  - the fingerprint is malformed or differs from the configured key's;
+  - no key is configured;
+  - the database cannot be read;
+  - a record already exists, including one created concurrently.
+
+  Otherwise it creates the record. It never decrypts a store's secrets, so it
+  proves the key matches the escrow, not that every stored secret opens with it.
+  Production is **not verified until an operator has adopted** (or the first
+  connection has bootstrapped) and Super Admin → Settings shows "Verified".
+- **Recovery:**
+  - `mismatch`: restore the original key from escrow and redeploy. Payments
+    resume on their own.
+  - `check_unreadable`: investigate. **Never delete the record to make payments
+    work.**
+  - Record lost, with secrets stored: the state becomes `unverified_legacy`;
+    adopt again with the escrow fingerprint.
+  - Older code ignores the collection, so rolling back needs no cleanup.
 
 Account API (`app/api/businesses/[id]/payment-account`): `GET` / `PUT`
 (connect or replace) / `DELETE` (disconnect: status `disabled`, encrypted
@@ -102,7 +188,8 @@ Policy never has to allow Razorpay scripts or frames.
    id only selects which secret to check; the HMAC-SHA256 of the exact raw body
    (`X-Razorpay-Signature`) must match (401 otherwise, identical for unknown
    businesses). Body limit 64 KiB. Other events return 200 and do nothing.
-   A provider error returns 502 so Razorpay retries.
+   A provider error returns 502 so Razorpay retries, and so does a blocking
+   payment key check (503, before any account is looked up).
 5. **Confirmation** (`confirmPaymentLink`): looks the link up **scoped to the
    business**, re-reads it from the Razorpay API with that business's key, and
    applies it only if the link id, `reference_id` (order id), `amount`,
@@ -162,7 +249,12 @@ starts a second refund at Razorpay from a webhook.
 
 1. Create the indexes above.
 2. Set `PAYMENT_CREDENTIALS_KEY` (32 random bytes, base64; store it in the
-   secret manager; back it up — losing it means every owner must reconnect).
+   secret manager; escrow it and record its fingerprint, see
+   `docs/backup-and-disaster-recovery.md`. Losing it means every owner must
+   reconnect). Run `npm run payment-key-check -- status`: with no stored
+   secrets it reports `no_check_no_data`, and the first connection in step 4
+   creates the check record. If secrets are already stored, adopt the key with
+   its escrow fingerprint (approved operator action, "Payment key check" above).
 3. Set `ORDER_ONLINE_PAYMENTS_ENABLED=true`; keep
    `ORDER_PAYMENTS_LIVE_ALLOWED=false`.
 4. As a store owner, create Razorpay **test-mode** API keys and a webhook (URL

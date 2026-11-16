@@ -16,6 +16,7 @@ import {
   type FetchLike,
   type RazorpayCredentials,
 } from "@/lib/payments/razorpay";
+import { assertPaymentKeyUsable, checkPaymentKey, isBlockingPaymentKeyState } from "@/lib/payments/key-check";
 import { BusinessPaymentAccount, type BusinessPaymentAccountDoc } from "@/models/BusinessPaymentAccount";
 import { queueOrderEmail } from "@/lib/orders/notifications";
 import { notifyOrder, notifyPaymentFailure } from "@/lib/notification-events";
@@ -50,7 +51,9 @@ function toObjectId(id: unknown): mongoose.Types.ObjectId {
 /**
  * The business's usable account, or null. An account is usable only when the
  * feature flag is on, the encryption key is configured, the account is active,
- * and (for live mode) live payments are explicitly allowed.
+ * (for live mode) live payments are explicitly allowed, and the key check does
+ * not block (lib/payments/key-check.ts). The check runs last, only for a store
+ * that has an account, so storefronts without one never pay for it.
  */
 export async function getUsablePaymentAccount(businessId: unknown): Promise<AccountWithSecrets | null> {
   if (!isOrderOnlinePaymentsEnabled() || !isPaymentCredentialsKeyConfigured()) return null;
@@ -63,6 +66,7 @@ export async function getUsablePaymentAccount(businessId: unknown): Promise<Acco
     .lean<AccountWithSecrets>();
   if (!account || !account.keySecretEnc || !account.webhookSecretEnc) return null;
   if (account.mode === "live" && !isOrderPaymentsLiveAllowed()) return null;
+  if (isBlockingPaymentKeyState((await checkPaymentKey()).state)) return null;
   return account;
 }
 
@@ -239,6 +243,8 @@ export async function confirmPaymentLink(input: {
   if (!account?.keySecretEnc) return { outcome: "not_paid", orderId };
   // Test and live keys see different links: never read one with the other.
   if (account.mode !== payment.mode) return { outcome: "not_paid", orderId };
+  // Before decrypting: a wrong key answers 503 (temporary), so the payment is confirmed later.
+  await assertPaymentKeyUsable();
 
   const link = await fetchPaymentLink(credentialsOf(account), input.linkId, input.fetchImpl);
   const matches =
@@ -314,6 +320,7 @@ export async function closeOpenPaymentLinks(businessId: string, orderId: string,
       .select("+keySecretEnc +webhookSecretEnc")
       .lean<AccountWithSecrets>();
     if (!account?.keySecretEnc) return;
+    if (isBlockingPaymentKeyState((await checkPaymentKey()).state)) return;
     for (const payment of open) {
       if (payment.mode !== account.mode) continue;
       await cancelPaymentLink(credentialsOf(account), payment.providerLinkId, fetchImpl);

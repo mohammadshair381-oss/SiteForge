@@ -8,6 +8,7 @@ import { queueOrderEmail } from "@/lib/orders/notifications";
 import { notifyRefund } from "@/lib/notification-events";
 import { paymentAccountForRefunds } from "@/lib/payments/order-payments";
 import { decryptCredential } from "@/lib/payments/credentials-crypto";
+import { assertPaymentKeyUsable } from "@/lib/payments/key-check";
 import { RazorpayApiError, createRefund, fetchRefund, toMinorUnits, type FetchLike, type RazorpayRefund } from "@/lib/payments/razorpay";
 import { assertFeatureReady } from "@/lib/required-indexes";
 import { Order, type OrderDoc } from "@/models/Order";
@@ -250,7 +251,11 @@ export async function createOrderRefund(input: RefundRequest): Promise<OrderRefu
   const now = input.now ?? new Date();
   await dbConnect();
   // Checked before anything is held or sent, so nothing reaches Razorpay without the protection.
-  if (input.method === "razorpay") await assertFeatureReady("order_refunds");
+  if (input.method === "razorpay") {
+    await assertFeatureReady("order_refunds");
+    // A wrong or unverifiable payment key answers 503 here: no hold, no refund record, no request.
+    await assertPaymentKeyUsable();
+  }
   const businessObjectId = new mongoose.Types.ObjectId(input.businessId);
   const orderObjectId = new mongoose.Types.ObjectId(input.orderId);
 
@@ -328,6 +333,8 @@ export async function refreshOrderRefund(input: { businessId: string; refundId: 
   const refund = await OrderRefund.findOne({ _id: input.refundId, business: input.businessId }).lean<OrderRefundDoc>();
   if (!refund) throw new HttpError(404, "Refund not found", "not_found");
   if (refund.status === "pending" && refund.provider === "razorpay") {
+    // Before any request: a wrong key leaves the refund exactly as it is (pending, amount held).
+    await assertPaymentKeyUsable();
     if (refund.providerRefundId) {
       const account = await paymentAccountForRefunds(refund.business, refund.mode);
       if (!account) throw new HttpError(409, "Reconnect the Razorpay account this payment was taken with.", "refund_account_unavailable");
@@ -358,6 +365,7 @@ export async function syncRefundFromProvider(input: { businessId: string; provid
   const known = await OrderRefund.findOne({ business, providerRefundId: input.providerRefundId }).lean<OrderRefundDoc>();
   const account = await paymentAccountForRefunds(business, known?.mode ?? null);
   if (!account) return { outcome: "unknown" };
+  await assertPaymentKeyUsable();
   const remote = await fetchRefund({ keyId: account.keyId, keySecret: decryptCredential(account.keySecretEnc) }, input.providerRefundId, input.fetchImpl);
 
   // 1. By Razorpay's own refund id: a record that holds it.

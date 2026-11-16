@@ -10,6 +10,7 @@ import { integrationStatuses } from "@/lib/integration-status";
 import { readPlatformSettingsState } from "@/lib/platform-settings";
 import { registrationUnavailableReason } from "@/lib/platform-status";
 import { FEATURE_LABELS, missingIndexes, type IndexedFeature } from "@/lib/required-indexes";
+import { checkPaymentKey, type PaymentKeyState } from "@/lib/payments/key-check";
 import { Plan } from "@/models/Plan";
 import PlatformSettingsForm from "@/components/admin/PlatformSettingsForm";
 import { Badge, Card, PageTitle, formatDate, linkClass, listClass } from "@/components/admin/ControlCenterUI";
@@ -19,6 +20,32 @@ import { formatPrice } from "@/lib/format";
 export const dynamic = "force-dynamic";
 
 const FEATURES: IndexedFeature[] = ["subscription_billing", "team_invitations", "custom_domains", "customer_carts", "notifications", "order_refunds", "customer_accounts"];
+
+/** Payment-key check states (lib/payments/key-check.ts): badge tone, label and what to do. */
+const PAYMENT_KEY_VIEW: Record<PaymentKeyState, { badge: string; label: string; note: string; warning?: string }> = {
+  unconfigured: { badge: "inactive", label: "No key", note: "PAYMENT_CREDENTIALS_KEY is missing or invalid, so online payment features are off." },
+  verified: { badge: "active", label: "Verified", note: "The configured key opens the check record, so it is the key the stored payment secrets were written with." },
+  no_check_no_data: { badge: "pending", label: "Not checked yet", note: "No payment secrets are stored yet. The first Razorpay connection creates the check record with this key." },
+  unverified_legacy: {
+    badge: "pending",
+    label: "Not verified",
+    note: "Payment secrets are stored but there is no check record yet.",
+    warning: "Payments keep working, but connecting or reconnecting a Razorpay account is paused. An operator must adopt the key with its escrow fingerprint (npm run payment-key-check), staging first.",
+  },
+  mismatch: {
+    badge: "failed",
+    label: "Wrong key",
+    note: "The configured key does not open the check record.",
+    warning: "Online payments, refunds, dispute updates and payment webhooks are paused for every store. Restore the original key from escrow and redeploy. Do not delete the check record.",
+  },
+  check_unreadable: {
+    badge: "failed",
+    label: "Check record unreadable",
+    note: "The check record exists but cannot be read by this version.",
+    warning: "Payment operations are paused for every store. Do not delete or replace the record: investigate it first (docs/payments-architecture.md).",
+  },
+  unknown: { badge: "pending", label: "Could not check", note: "The database did not answer. Payment operations wait until it does. Reload this page to try again." },
+};
 
 function Status({ on, onLabel = "On", offLabel = "Off" }: { on: boolean; onLabel?: string; offLabel?: string }) {
   return <Badge value={on ? "active" : "inactive"} label={on ? onLabel : offLabel} />;
@@ -44,12 +71,14 @@ function Row({ label, note, children }: { label: string; note?: string; children
 export default async function AdminSettingsPage() {
   await requireSuperAdminPage();
   await dbConnect();
-  const [state, plans, readiness, transactions] = await Promise.all([
+  const [state, plans, readiness, transactions, paymentKey] = await Promise.all([
     readPlatformSettingsState(),
     Plan.find().sort({ sort: 1, price: 1 }).select("key name price currency interval active").lean(),
     Promise.all(FEATURES.map(async (feature) => ({ feature, missing: await missingIndexes(feature) }))),
     databaseSupportsTransactions(),
+    checkPaymentKey({ fresh: true }),
   ]);
+  const paymentKeyView = PAYMENT_KEY_VIEW[paymentKey.state];
   const ai = await aiPlatformStatus();
   const billing = billingConfig();
   const config = env();
@@ -148,6 +177,26 @@ export default async function AdminSettingsPage() {
           <p className="mt-3 text-xs leading-5 text-slate-500">Creating these indexes is an approved operation: see docs/database-preparation.md. Nothing on this page creates them.</p>
         </Card>
       </div>
+
+      <Card title="Payment credentials key">
+        {paymentKeyView.warning && (
+          <Notice tone="warning" role="alert" title={paymentKeyView.label} className="mb-3">
+            {paymentKeyView.warning}
+          </Notice>
+        )}
+        <ul className={listClass}>
+          <Row label="Key check" note={paymentKeyView.note}>
+            <Badge value={paymentKeyView.badge} label={paymentKeyView.label} />
+          </Row>
+          <Row label="Configured key fingerprint" note="Of PAYMENT_CREDENTIALS_KEY as this server sees it. Compare it with the fingerprint recorded with the key escrow.">
+            <span className="font-mono text-[13px] text-slate-700">{paymentKey.configuredFingerprint ?? "None"}</span>
+          </Row>
+          <Row label="Expected fingerprint" note="Recorded in the check record when it was created.">
+            <span className="font-mono text-[13px] text-slate-700">{paymentKey.expectedFingerprint ?? "None"}</span>
+          </Row>
+        </ul>
+        <p className="mt-3 text-xs leading-5 text-slate-500">Fingerprints identify a key without revealing it. The key and the stored payment secrets are never displayed. Nothing on this page changes the check record.</p>
+      </Card>
       <p className="text-xs text-slate-500">Page generated {formatDate(new Date(), true)}.</p>
     </div>
   );
