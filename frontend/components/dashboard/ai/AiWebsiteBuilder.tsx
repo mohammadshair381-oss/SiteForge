@@ -7,6 +7,7 @@ import { confirmDialog } from "@/components/ui/ConfirmDialog";
 import { Notice, Pill, Skeleton } from "@/components/ui/Surface";
 import type { ConversationView } from "@/lib/ai-website/conversation";
 import { CLAIMS_CONFIRMED_PREFIX } from "@/lib/ai-website/blueprint";
+import { asksForWholeWebsite } from "@/lib/ai-builder/intent";
 import AiProposalReview, { type AiPreviewData, type AiProposalDetail } from "./AiProposalReview";
 import { AiNotes } from "./AiShared";
 
@@ -31,6 +32,7 @@ export default function AiWebsiteBuilder({
   blockedReason,
   previewData,
   onUsageChanged,
+  handoff = null,
 }: {
   businessId: string;
   /** AI can be used for this store right now (server-decided). */
@@ -39,6 +41,8 @@ export default function AiWebsiteBuilder({
   blockedReason: string | null;
   previewData: AiPreviewData | null;
   onUsageChanged: () => void;
+  /** A whole-website request typed elsewhere in the AI Builder, to send here once. */
+  handoff?: { text: string; key: number } | null;
 }) {
   const router = useRouter();
   const inputId = useId();
@@ -50,6 +54,9 @@ export default function AiWebsiteBuilder({
   const [notes, setNotes] = useState<string[]>([]);
   const [lastMessage, setLastMessage] = useState<string | null>(null);
   const stopRequested = useRef(false);
+  const handoffUsed = useRef<number | null>(null);
+  /** Shown while the website is written because the owner asked for it in so many words. */
+  const [building, setBuilding] = useState(false);
   const base = `/api/businesses/${businessId}/ai/website`;
   const conversation = state?.conversation ?? null;
   const phase = conversation?.phase ?? "discovery";
@@ -89,6 +96,9 @@ export default function AiWebsiteBuilder({
     setError(null);
     setLastMessage(words);
     const revising = target === "revise" || phase === "proposal" || phase === "applied";
+    // "Create a website for my bakery" (keywords, never the AI's choice): after the reply, every page is
+    // written straight away. It still only becomes a proposal the owner reviews.
+    let buildNow = false;
     try {
       const res = await fetch(revising ? `${base}/revise` : base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: words }) });
       const data = await res.json().catch(() => ({}));
@@ -97,6 +107,7 @@ export default function AiWebsiteBuilder({
       setText("");
       setNotes(Array.isArray(data.notes) ? data.notes : []);
       if (data.proposal) setDetail(data.proposal as AiProposalDetail);
+      buildNow = !revising && asksForWholeWebsite(words) && data.conversation?.phase !== "proposal" && data.conversation?.phase !== "applied";
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error. Your message may not have been sent.");
       await load();
@@ -104,7 +115,21 @@ export default function AiWebsiteBuilder({
       setBusy(null);
       onUsageChanged();
     }
+    if (buildNow) {
+      setBuilding(true);
+      await generate();
+      setBuilding(false);
+    }
   }
+
+  // A whole-website request from "One change": sent once, as if typed here.
+  useEffect(() => {
+    if (!handoff || state === null || handoffUsed.current === handoff.key) return;
+    handoffUsed.current = handoff.key;
+    if (ready && phase === "discovery" && !busy) void send(handoff.text);
+    else setText(handoff.text.slice(0, 1000));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per hand-off, when the conversation has loaded
+  }, [handoff, state]);
 
   /** One request per step. Everything finished is stored, so stopping or failing loses nothing. */
   async function generate() {
@@ -197,7 +222,7 @@ export default function AiWebsiteBuilder({
   const placeholder =
     phase === "proposal" || phase === "applied"
       ? "For example: make the homepage hero shorter, or add a new arrivals page"
-      : "For example: we are a family bakery in Pune, and want people to order cakes and find us";
+      : "For example: create a website for our family bakery in Pune, with all the pages people need to order cakes and find us";
 
   return (
     <div className="space-y-4">
@@ -207,7 +232,7 @@ export default function AiWebsiteBuilder({
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0 flex-1 basis-64">
             <h3 className="text-sm font-semibold text-slate-900">Your whole website</h3>
-            <p className="mt-0.5 text-sm leading-6 text-slate-600">Tell the assistant about your business, in your own words and in as many messages as you like. It can then write a complete website for you to review.</p>
+            <p className="mt-0.5 text-sm leading-6 text-slate-600">Tell the assistant about your business, in your own words and in as many messages as you like. Ask it to create your website and it writes every page, ready for you to review.</p>
           </div>
           <Button variant="ghost" disabled={busy !== null || (conversation?.messages.length ?? 0) === 0} onClick={() => void startFresh()}>Start again</Button>
         </div>
@@ -258,7 +283,8 @@ export default function AiWebsiteBuilder({
                 </div>
               </div>
             )}
-            {generating && !generation?.started && <p role="status" className="text-sm font-medium text-slate-800">Planning your website…</p>}
+            {generating && !generation?.started && <p role="status" className="text-sm font-medium text-slate-800">Planning your website and all its pages…</p>}
+            {building && <p className="text-xs leading-5 text-slate-600">You asked for a website, so the assistant is writing the plan, the homepage and every page now, one step at a time. Nothing changes on your store until you review and approve it.</p>}
             {conversation?.needsCorrection && !generating && (
               <Notice tone="warning" role="status">The assistant chose something your store does not have, so that step was not saved. Your finished steps are kept, and this cost nothing. Carry on to try just that step again, or tell the assistant what to use instead.</Notice>
             )}

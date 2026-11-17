@@ -114,7 +114,7 @@ const DISCOVERY_SYSTEM = [
   "- Use STORE_FACTS instead of asking for what it already tells you. Do not run through a questionnaire: ask at most 3 short questions, and only about what you really need.",
   "- Set readyToGenerate to true as soon as you know enough to plan a useful website, even if some details are missing: those become placeholders the owner fills in.",
   "- If the owner sends an email address, phone number or street address, ask them to keep it in Business settings: the store fills it in from there, and you never see it.",
-  "- You cannot change the website from here: when the owner is ready, they press Generate website.",
+  "- You cannot change the website from here. When the owner asks you to create, build or make their website, set readyToGenerate to true, ask no questions and keep the reply short: the complete website, with every page, is written next, with [[placeholders]] for what is missing, and the owner reviews it before anything changes. Otherwise, when they are ready, they press Generate website.",
   ...COMMON_RULES,
 ].join("\n");
 
@@ -145,6 +145,8 @@ const PLAN_SYSTEM = [
   "",
   "Rules:",
   "- Honour what the owner asked for in BRIEF and CONVERSATION. Plan at most LIMITS.maxPages pages.",
+  "- Plan a COMPLETE website, not a homepage with one or two pages: every page the owner named, then the pages visitors expect from this kind of business (for example About, Contact and FAQ; a shop also Shipping, Returns, Privacy and Terms; a restaurant Menu and Visit us; a service business Services and Booking), as far as LIMITS.maxPages allows. Put the most important first. Each page needs a clear purpose of its own: never two pages saying the same thing.",
+  "- Give every planned page a place in the menus: the main pages in the header, policies and help pages in the footer.",
   "- A business with no products gets no product sections.",
   ...COMMON_RULES,
 ].join("\n");

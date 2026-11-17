@@ -47,6 +47,26 @@ export function pageTypeOf(text: string): PageType | null {
   return null;
 }
 
+/** Something smaller than a website that a request may be about ("an about page for my website"). */
+const PART_OF_A_WEBSITE =
+  /\b(page|section|banner|block|menu|header|footer|hero|button|product|description|seo|theme|colou?r|font|logo|text|copy|blog|post|article|faq|polic(y|ie)|announcement|newsletter|image|picture|photo|link|selling)s?\b/;
+
+/**
+ * Whether the owner asks for a whole website ("create a website for my bakery",
+ * "build my online store with all the pages"). Pure keywords, like the rest of
+ * this file: the AI never decides it. A request about one part of a website
+ * ("add an FAQ page to my website") is not one.
+ */
+export function asksForWholeWebsite(text: string): boolean {
+  const t = text.toLowerCase().replace(/\s+/g, " ");
+  // "make my website darker" is a change, so "make" counts only as "make (me) a/an/new ...".
+  const create = "(?:\\b(?:create|build|generate|design|set up|setup|start|launch|write)\\b|\\bmake(?: me| us)? (?:a|an|new)\\b)";
+  if (new RegExp(`${create}.{0,40}?\\b(?:all|every)(?: of)?(?: the| my)? (?:web ?)?pages\\b`).test(t)) return true;
+  // Group 1 is what comes between the verb and "website": "an FAQ page for my" is about a part.
+  const match = new RegExp(`${create}(.{0,60}?)\\b(?:web ?site|site|online (?:store|shop)|e-?commerce store)\\b`).exec(t);
+  return match !== null && !PART_OF_A_WEBSITE.test(match[1] ?? "");
+}
+
 /**
  * Classifies a request. `context` is what the owner has selected: a content
  * page (`pageId`), a product, or nothing (the store / homepage).

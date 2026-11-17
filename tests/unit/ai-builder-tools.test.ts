@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { AI_CONSENT_DISCLOSURE } from "../../backend/lib/ai-builder/consent";
-import { classifyAiRequest, pageTypeOf } from "../../backend/lib/ai-builder/intent";
+import { asksForWholeWebsite, classifyAiRequest, pageTypeOf } from "../../backend/lib/ai-builder/intent";
 import {
   PageBuildError,
   aiNewPageSchema,
@@ -59,6 +59,32 @@ test("classifyAiRequest understands the kinds of request from the brief", () => 
     assert.equal(intent.mode, mode, text);
     assert.equal(intent.kind, kind, text);
     assert.ok(intent.label.length > 0);
+  }
+});
+
+test("asksForWholeWebsite recognises a request for a whole website, and only that", () => {
+  for (const text of [
+    "Create a website for my bakery in Pune",
+    "build my online store",
+    "Make me a website for my yoga studio with all the pages",
+    "please generate a complete website for my clinic",
+    "Design a new site for our restaurant",
+    "create all the pages for my website",
+    "Set up an online shop for handmade jewellery",
+  ]) {
+    assert.equal(asksForWholeWebsite(text), true, text);
+  }
+  for (const text of [
+    "Create an about page for my website",
+    "Add an FAQ section to my site",
+    "make my website darker",
+    "Improve the SEO of my whole website",
+    "Write product descriptions for my site",
+    "Create a hero banner for the website",
+    "Rewrite the homepage headline",
+    "",
+  ]) {
+    assert.equal(asksForWholeWebsite(text), false, text);
   }
 });
 

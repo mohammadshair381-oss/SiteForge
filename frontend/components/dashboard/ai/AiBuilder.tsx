@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { AI_MODE_LABELS, AI_BUILDER_MODES, classifyAiRequest, type AiBuilderMode } from "@/lib/ai-builder/intent";
+import { AI_MODE_LABELS, AI_BUILDER_MODES, asksForWholeWebsite, classifyAiRequest, type AiBuilderMode } from "@/lib/ai-builder/intent";
 import { SEO_LIMITS, type SeoTargetKind } from "@/lib/ai-builder/seo";
 import type { ThemeRecommendation } from "@/lib/ai-builder/theme-advisor";
 import AiConsentCard, { type AiConsentView } from "../AiConsentCard";
@@ -158,10 +158,14 @@ export default function AiBuilder({
   const [counts, setCounts] = useState(usage);
   const sessionKey = useRef(0);
   const [area, setArea] = useState<"website" | "single">(initialArea ?? (pages.length === 0 ? "website" : "single"));
+  /** A request for a whole website typed in "One change", handed to the website builder. */
+  const [handoff, setHandoff] = useState<{ text: string; key: number } | null>(null);
 
   const blockedMessage = consentView.blockedMessage ?? null;
   const ready = available && consentView.consent.granted && !blockedMessage;
   const intent = useMemo(() => classifyAiRequest(text, { pageSelected: Boolean(lockedPage) }), [text, lockedPage]);
+  // Decided by keywords, never by the AI: "create a website for my bakery" means every page, not one change.
+  const wholeWebsite = !lockedPage && !override && asksForWholeWebsite(text);
   const mode: AiBuilderMode = lockedPage ? "page" : (override ?? (text.trim().length >= 3 ? intent.mode : "homepage"));
   const contentPages = pages.filter((p) => !p.isHome);
   const selectedPage = contentPages.find((p) => p.id === (mode === "section" ? sectionTarget : pageTarget));
@@ -223,6 +227,14 @@ export default function AiBuilder({
 
   async function send(requestText: string) {
     const request = requestText.trim();
+    if (!lockedPage && !override && asksForWholeWebsite(request)) {
+      setError(null);
+      setResult(null);
+      setText("");
+      setHandoff({ text: request, key: Date.now() });
+      setArea("website");
+      return;
+    }
     if (request.length < 3 && mode !== "seo" && mode !== "product") return;
     setBusy(true);
     setError(null);
@@ -412,19 +424,19 @@ export default function AiBuilder({
       {!lockedPage && (
         <div className="rounded-xl bg-slate-50 p-3">
           <p className="text-sm text-slate-700" data-ai-understood="">
-            {text.trim().length >= 3 && !override ? <>Here is what I understood: <span className="font-semibold text-[#b23a12]">{intent.label}</span></> : override ? <>Working on: <span className="font-semibold text-[#b23a12]">{AI_MODE_LABELS[override]}</span></> : "Choose what to work on, or just describe it."}
+            {wholeWebsite ? <>Here is what I understood: <span className="font-semibold text-[#b23a12]">Your whole website, with all its pages</span></> : text.trim().length >= 3 && !override ? <>Here is what I understood: <span className="font-semibold text-[#b23a12]">{intent.label}</span></> : override ? <>Working on: <span className="font-semibold text-[#b23a12]">{AI_MODE_LABELS[override]}</span></> : "Choose what to work on, or just describe it."}
           </p>
           <div role="group" aria-label="What to work on" className="mt-2 flex flex-wrap gap-1">
             {AI_BUILDER_MODES.map((value) => (
               <button
                 key={value}
                 type="button"
-                aria-pressed={mode === value}
+                aria-pressed={!wholeWebsite && mode === value}
                 onClick={() => {
                   setOverride(value);
                   if (value === "theme" && !ready) void catalogThemes();
                 }}
-                className={`min-h-10 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors lg:min-h-8 ${focus} ${mode === value ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-900"}`}
+                className={`min-h-10 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors lg:min-h-8 ${focus} ${!wholeWebsite && mode === value ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-900"}`}
               >
                 {AI_MODE_LABELS[value]}
               </button>
@@ -704,6 +716,7 @@ export default function AiBuilder({
           blockedReason={!available ? "AI suggestions are not available right now." : blockedMessage ?? (!consentView.consent.granted ? "AI suggestions need to be turned on for this store first." : exhausted ? "No AI requests left this month." : null)}
           previewData={previewData}
           onUsageChanged={() => void refreshUsage()}
+          handoff={handoff}
         />
       ) : (
         <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]">

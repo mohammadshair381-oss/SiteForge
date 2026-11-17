@@ -176,7 +176,10 @@ ever been read, never run: no real provider has produced a website.
 | Preview | `preview.ts` | Lays a proposal over a store view, for the shared renderer |
 
 **Steps.** The owner talks (`POST ai/website`). Asking to generate runs one request per step (`POST ai/website/generate`, repeated by the client): the plan and
-homepage, then each page, then the proposal, which uses no provider. Each finished step is stored in the conversation, so stopping loses nothing. A lease stops two
+homepage, then each page, then the proposal, which uses no provider. When the owner's message itself asks for a website ("create a website for my bakery",
+`asksForWholeWebsite` in `backend/lib/ai-builder/intent.ts`: keywords only, never the provider's choice), the screen starts these steps right after the reply, and a request typed
+in "One change" is handed to this workflow instead of becoming one homepage change. The plan is asked for a complete website: the pages the owner named and the pages visitors
+expect for that kind of business, up to the page limits. It still ends in one proposal the owner reviews. Each finished step is stored in the conversation, so stopping loses nothing. A lease stops two
 requests working on one conversation. `POST ai/website/revise` turns one request into a proposal holding only that change: it builds on a waiting proposal and
 replaces it, or else on the current drafts. The provider never picks a task: what a message does depends on the conversation's phase and the endpoint.
 
