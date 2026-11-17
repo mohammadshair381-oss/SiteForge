@@ -3,15 +3,47 @@
  * Node-only module, because it is used from middleware.
  */
 
+/**
+ * One configured address reduced to a bare host (with its port, if any). Settings are
+ * often pasted as a full address, so `https://`, quotes, a path and a trailing slash
+ * or dot are dropped: "https://app.example.com/" means "app.example.com".
+ */
+export function cleanRootDomain(value: string): string {
+  return value
+    .trim()
+    .replace(/^["']+|["']+$/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/^[a-z][a-z0-9+.-]*:\/\//, "")
+    .replace(/[/?#].*$/, "")
+    .replace(/\.$/, "");
+}
+
+/** The host of `APP_URL`, which names the platform's own address; null when unset or unusable. */
+function appUrlHost(): string | null {
+  const raw = process.env.APP_URL?.trim();
+  if (!raw) return null;
+  try {
+    return new URL(raw).host.toLowerCase() || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The platform's own addresses. `ROOT_DOMAINS` (or else `NEXT_PUBLIC_ROOT_DOMAIN`, or
+ * else `localhost:3000`) come first, in their order. The host of `APP_URL` and, on
+ * Vercel, the project's production address (`VERCEL_PROJECT_PRODUCTION_URL`) are
+ * added after them, so the platform never mistakes its own address for a store's.
+ */
 export function getRootDomains(): string[] {
   const raw =
     process.env.ROOT_DOMAINS ||
     process.env.NEXT_PUBLIC_ROOT_DOMAIN ||
     "localhost:3000";
-  return raw
-    .split(",")
-    .map((value) => value.trim().toLowerCase())
-    .filter(Boolean);
+  const configured = raw.split(",").map(cleanRootDomain);
+  const own = [appUrlHost(), cleanRootDomain(process.env.VERCEL_PROJECT_PRODUCTION_URL ?? "")];
+  return [...new Set([...configured, ...own].filter((value): value is string => Boolean(value)))];
 }
 
 export function normalizeHost(host: string | null | undefined): string {

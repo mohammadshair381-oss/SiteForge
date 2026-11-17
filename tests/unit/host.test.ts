@@ -43,6 +43,45 @@ test("getRootDomains falls back to NEXT_PUBLIC_ROOT_DOMAIN then localhost", () =
   assert.deepEqual(getRootDomains(), ["localhost:3000"]);
 });
 
+test("getRootDomains accepts full addresses, quotes and trailing slashes", () => {
+  process.env.ROOT_DOMAINS = ' "https://App.Example.com/" , http://localhost:3000/path?x=1, example.org. ';
+  assert.deepEqual(getRootDomains(), ["app.example.com", "localhost:3000", "example.org"]);
+  assert.equal(isRootHost("app.example.com"), true);
+});
+
+test("getRootDomains adds the APP_URL host and the Vercel production address after the configured ones", () => {
+  const env = process.env as Record<string, string | undefined>;
+  const originalAppUrl = env.APP_URL;
+  const originalVercel = env.VERCEL_PROJECT_PRODUCTION_URL;
+  const originalNodeEnv = env.NODE_ENV;
+  try {
+    process.env.ROOT_DOMAINS = "localhost:3000";
+    env.APP_URL = "https://Platform.Example.com/";
+    env.VERCEL_PROJECT_PRODUCTION_URL = "my-app.vercel.app";
+    assert.deepEqual(getRootDomains(), ["localhost:3000", "platform.example.com", "my-app.vercel.app"]);
+    env.NODE_ENV = "production";
+    assert.equal(isRootHost("my-app.vercel.app"), true, "the deployment's own address is the platform");
+    assert.equal(isRootHost("platform.example.com"), true);
+    assert.equal(extractSubdomain("demo.platform.example.com"), "demo", "stores still resolve under it");
+    assert.equal(isRootHost("other.vercel.app"), false);
+
+    env.APP_URL = "not a url";
+    delete env.VERCEL_PROJECT_PRODUCTION_URL;
+    assert.deepEqual(getRootDomains(), ["localhost:3000"], "unusable values add nothing");
+    env.APP_URL = "http://localhost:3000";
+    assert.deepEqual(getRootDomains(), ["localhost:3000"], "no duplicates");
+  } finally {
+    for (const [key, value] of [
+      ["APP_URL", originalAppUrl],
+      ["VERCEL_PROJECT_PRODUCTION_URL", originalVercel],
+      ["NODE_ENV", originalNodeEnv],
+    ] as const) {
+      if (value === undefined) delete env[key];
+      else env[key] = value;
+    }
+  }
+});
+
 test("normalizeHost lowercases and trims, tolerating null/undefined", () => {
   assert.equal(normalizeHost("  DEMO.Example.com "), "demo.example.com");
   assert.equal(normalizeHost(null), "");

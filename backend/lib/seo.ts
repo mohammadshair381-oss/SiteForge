@@ -1,7 +1,7 @@
 import type { Metadata, MetadataRoute } from "next";
 import { dbConnect } from "./db";
 import { isProduction } from "./env";
-import { getRootDomains, isRootHost, normalizeHost } from "./host";
+import { cleanRootDomain, getRootDomains, isRootHost, normalizeHost } from "./host";
 import { getVisibleSections, resolvePublishedPageSections } from "./sections";
 import { getPublicStorefront } from "./tenant";
 import { RESERVED_PAGE_SLUGS } from "./validation";
@@ -132,7 +132,7 @@ export function canonicalRootDomain(
   roots: string[] = getRootDomains(),
   preferred: string | undefined = process.env.NEXT_PUBLIC_ROOT_DOMAIN,
 ): string {
-  const normalizedPreferred = normalizeHost(preferred);
+  const normalizedPreferred = cleanRootDomain(preferred ?? "");
   if (normalizedPreferred && roots.includes(normalizedPreferred)) return normalizedPreferred;
   return roots[0] ?? "localhost:3000";
 }
