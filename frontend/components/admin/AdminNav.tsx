@@ -33,15 +33,23 @@ const GROUPS: Array<{ label: string; items: Array<{ href: string; label: string;
 
 const onDarkFocus = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember-soft";
 
-/** The admin sections on a dark panel: the desktop sidebar and the mobile menu show this same list. */
-export default function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
+/**
+ * The admin sections on a dark panel: the desktop sidebar and the mobile menu show this same list.
+ * `collapsed` shows icons only (the folded sidebar); each link keeps its name for screen readers
+ * and as a tooltip.
+ */
+export default function AdminNav({ onNavigate, collapsed = false }: { onNavigate?: () => void; collapsed?: boolean }) {
   const pathname = usePathname();
   return (
-    <nav aria-label="Admin sections" className="space-y-5">
-      {GROUPS.map((group) => (
+    <nav aria-label="Admin sections" className={collapsed ? "space-y-3" : "space-y-5"}>
+      {GROUPS.map((group, index) => (
         <div key={group.label}>
-          <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-white/50">{group.label}</p>
-          <ul className="mt-1.5 space-y-0.5">
+          {collapsed ? (
+            index > 0 && <span aria-hidden="true" className="mx-auto mb-3 block h-px w-8 bg-white/10" />
+          ) : (
+            <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-white/50">{group.label}</p>
+          )}
+          <ul className={collapsed ? "space-y-1" : "mt-1.5 space-y-0.5"}>
             {group.items.map((item) => {
               const active = item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`);
               return (
@@ -50,13 +58,14 @@ export default function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
                     href={item.href}
                     onClick={onNavigate}
                     aria-current={active ? "page" : undefined}
-                    className={`relative flex min-h-10 items-center gap-2.5 rounded-lg px-3 text-sm font-medium transition-colors motion-reduce:transition-none ${onDarkFocus} ${
+                    title={collapsed ? item.label : undefined}
+                    className={`relative flex min-h-10 items-center rounded-lg text-sm font-medium ${collapsed ? "mx-auto w-10 justify-center" : "gap-2.5 px-3"} transition-colors motion-reduce:transition-none ${onDarkFocus} ${
                       active ? "bg-white/10 text-white" : "text-white/70 hover:bg-white/5 hover:text-white"
                     }`}
                   >
                     {active && <span aria-hidden="true" className="absolute inset-y-2 left-0 w-0.5 rounded-r bg-ember" />}
                     <Icon name={item.icon} size={17} className={active ? "text-ember-soft" : "text-white/50"} />
-                    {item.label}
+                    {collapsed ? <span className="sr-only">{item.label}</span> : item.label}
                   </Link>
                 </li>
               );
