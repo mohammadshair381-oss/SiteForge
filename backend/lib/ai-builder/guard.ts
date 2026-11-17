@@ -28,7 +28,7 @@ export async function guardAiRequest(request: Request, businessId: string, task:
   assertSameOriginJsonRequest(request);
   const { user } = await requireBusinessRole(businessId, ["owner", "manager"]);
   await requireVerifiedEmail();
-  assertAiAvailable();
+  await assertAiAvailable();
   await assertAiTaskAvailable(task);
 
   await dbConnect();

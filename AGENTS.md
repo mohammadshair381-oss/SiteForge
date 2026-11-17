@@ -375,7 +375,10 @@ never change with the platform. Use `frontend/components/ui/*`, `confirmDialog` 
   A provider exists only as a registered `AiProviderAdapter`; a name in a setting never makes one available. Store data goes only to
   `AI_DISCLOSED_PROVIDER_IDS`: adding one means updating the consent disclosure and bumping `AI_CONSENT_VERSION`. `aiRouting` (platform
   settings, audited, `PUT /api/admin/ai-routing`) can only narrow what the environment allows: never add a setting that turns a provider
-  on or holds a credential. Fallback happens only to providers the platform listed. A request is charged once and accepted once,
+  on. API keys (owner decision 2026-11-17) may be set by a Super Admin only through `app/api/admin/ai-credentials` (password again, reason,
+  audited with the last four characters only), stored only encrypted in `AiProviderCredential` (`backend/lib/ai-providers/credentials.ts`,
+  key derived from `SESSION_SECRET` with its own HKDF purpose); never return, log or audit a key, and never let one turn AI on. Adapters
+  read keys only through `aiProviderKey`, so every path that decides availability or calls a provider runs `loadAiCredentials()` first. Fallback happens only to providers the platform listed. A request is charged once and accepted once,
   whatever its attempts: never retry after `accept`. Show availability only from `aiReadiness` / `aiPlatformStatus`, never `aiBuilderStatus`
   alone. A plan's origin comes only from `assessPlanProvenance`, never from the browser; saving a plan must keep calling it.
 - Complete website generation (`backend/lib/ai-website/*`, `docs/ai-website-builder-plan.md`, "Complete website generation"): generated data is ordinary CMS sections, storefront config,
@@ -384,6 +387,9 @@ never change with the platform. Use `frontend/components/ui/*`, `confirmDialog` 
   DRAFT fields, never its live copy, title or address, and never removes a page. Conversations are read by business AND person. Earlier messages reach a provider only as a delimited data
   block, and only the owner's words count as facts in the claims check. Conversations are private to the person: never show one to another member or copy it into a proposal, including its messages and the assistant's summary of them (a proposal describes itself with `describeWebsiteChanges`). A single suggestion's `request` goes only to its author. Validate an answer's templates and categories before keeping it (`findUnsupportedChoices`), so a stored step can always be built. A provider sees products and
   media only by reference (`p1`, `m1`), resolved on the server and checked again when applying. A proposal never retires an older custom homepage: only publishing from the website editor does.
+- AI providers: Google Gemini, Anthropic Claude (`backend/lib/ai-providers/claude.ts`, official `@anthropic-ai/sdk`) and OpenAI
+  (`openai.ts`, native `fetch`), all owner-approved (Claude and OpenAI 2026-11-17, consent `2026-11-17.1`). The Super Admin picks one
+  or more on `/admin/ai-usage` (keys, then routing). The rules below for Gemini apply to every provider.
 - AI provider: Google Gemini (owner-approved; OFF in production until the
   activation requirements in `docs/ai-website-builder-plan.md` are met; never
   enable production AI without that separate approval). `getWebsitePlanningProvider()` and

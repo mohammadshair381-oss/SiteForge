@@ -114,7 +114,10 @@ which calls `executeAiTask` once; neither knows which provider answers.
 |---|---|---|
 | Adapter contract | `types.ts` | Text, structured JSON and conversation calls, normalized results, model capabilities |
 | Errors | `errors.ts` | `AiProviderError` extends `HttpError`, so clients get the same fixed message and code, plus a `kind` |
-| Gemini | `gemini.ts` | The only adapter. The request stays in `backend/lib/ai-planning/gemini-http.ts` |
+| Gemini | `gemini.ts` | The request stays in `backend/lib/ai-planning/gemini-http.ts` |
+| Claude | `claude.ts` | Anthropic's official SDK, streamed, effort `medium`, server-side refusal fallback, no SDK retries |
+| OpenAI | `openai.ts` | Chat Completions over `fetch`, JSON mode for structured answers |
+| Keys | `credentials.ts` | Keys a Super Admin sets (`AiProviderCredential`, encrypted); the environment's key is the fallback |
 | Registry | `registry.ts` | Implemented providers, their models and status, and `AI_DISCLOSED_PROVIDER_IDS` |
 | Routing | `routing.ts` | Task to provider and model, checked against what each task and model can do |
 | Settings | `settings.ts` | Stored routing choices (`PlatformSettings.aiRouting`) |
@@ -122,7 +125,14 @@ which calls `executeAiTask` once; neither knows which provider answers.
 
 **Adding a provider.** Implement `AiProviderAdapter`, call `registerAiProvider`, and add its variables to the
 server environment. Add it to `AI_DISCLOSED_PROVIDER_IDS` only with a new consent disclosure and a new
-`AI_CONSENT_VERSION`. No feature changes. Only Gemini is implemented today.
+`AI_CONSENT_VERSION`. No feature changes. Gemini, Claude and OpenAI are implemented (consent `2026-11-17.1`).
+
+**Choosing a provider and its key (owner decision, 2026-11-17).** On `/admin/ai-usage` a Super Admin pastes each provider's
+API key ("AI provider API keys": password again, a reason, audited with the last four characters only; stored AES-256-GCM
+under a key derived from `SESSION_SECRET`, so changing that secret means entering the keys again), then chooses in the routing
+which provider and model handle each task. To use only one, untick "Allow this provider" for the others. A key never turns AI
+on: `AI_PROVIDER_ENABLED` stays in the server environment, and production AI still needs its separate approval. Claude and
+OpenAI are mocked in tests only and have not been run against the real services.
 
 **Choosing a route.** The task's route, or else the default route, then `fallbackOrder`. With nothing saved, the first
 usable provider handles every task with its default model. A chosen route that cannot run is not replaced unless the

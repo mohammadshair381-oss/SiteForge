@@ -23,17 +23,21 @@ import type { AiTask } from "./usage";
  * data to another provider is such a change: name it here and add it to `AI_DISCLOSED_PROVIDER_IDS`
  * (lib/ai-providers/registry.ts), which is what lets requests be routed to it.
  */
-export const AI_CONSENT_VERSION = "2026-11-05.2";
-export const AI_PROVIDER_NAME = "Google Gemini";
+export const AI_CONSENT_VERSION = "2026-11-17.1";
+/** Every provider store data may go to (`AI_DISCLOSED_PROVIDER_IDS`); the platform chooses which one handles a request. */
+export const AI_PROVIDER_NAMES = ["Google Gemini", "Anthropic Claude", "OpenAI"] as const;
+/** Shown when no single provider is in use yet. */
+export const AI_PROVIDER_NAME = "Google Gemini, Anthropic Claude or OpenAI";
 
 /** What this version adds, shown to an owner whose consent is for an older one. */
-export const AI_CONSENT_CHANGES = "New in this version: product names, product categories and media file names may be sent to Google Gemini when the assistant builds or changes your website.";
+export const AI_CONSENT_CHANGES = "New in this version: besides Google Gemini, the platform may now send AI requests to Anthropic Claude or OpenAI. The same store details are sent, whichever one handles a request.";
 
 export const AI_CONSENT_DISCLOSURE: readonly string[] = [
-  "Google Gemini processes the store content sent with each AI request: your business name, type and description, your selected theme, your homepage settings and sections, the titles and text of your website pages, and product titles, descriptions, categories and options.",
-  "Website page content: the titles of this store's pages, and the description and section text of the page you ask about, are sent to Google Gemini. Only this store's pages are used and images are never sent. Email addresses, phone numbers and your saved contact details are removed from everything sent; please keep other private details, and differently worded addresses, out of your pages and products.",
-  "Website conversations: when you build your website with the assistant, your messages in that conversation, what it has noted about your business, your design and menu choices, and the text of your pages are sent to Google Gemini. Your messages are kept with this store for 14 days after the last one, or until you start again. After that they are never used again, and they are deleted the next time cleanup runs.",
-  "Product and media details: product names, product categories and media file names may be sent to Google Gemini, the AI provider this platform uses, so the assistant can choose products and pictures for your website. So may the descriptions of your media. A picture's file name is used when it has no description, so keep private details out of your file names. Picture addresses, product ids, prices and stock levels are not sent.",
+  "AI providers: each AI request is handled by one of Google Gemini, Anthropic Claude or OpenAI, chosen by the platform. Whichever one it is receives the details listed here, and only for that request.",
+  "The AI provider processes the store content sent with each AI request: your business name, type and description, your selected theme, your homepage settings and sections, the titles and text of your website pages, and product titles, descriptions, categories and options.",
+  "Website page content: the titles of this store's pages, and the description and section text of the page you ask about, are sent to the AI provider. Only this store's pages are used and images are never sent. Email addresses, phone numbers and your saved contact details are removed from everything sent; please keep other private details, and differently worded addresses, out of your pages and products.",
+  "Website conversations: when you build your website with the assistant, your messages in that conversation, what it has noted about your business, your design and menu choices, and the text of your pages are sent to the AI provider. Your messages are kept with this store for 14 days after the last one, or until you start again. After that they are never used again, and they are deleted the next time cleanup runs.",
+  "Product and media details: product names, product categories and media file names may be sent to the AI provider so the assistant can choose products and pictures for your website. So may the descriptions of your media. A picture's file name is used when it has no description, so keep private details out of your file names. Picture addresses, product ids, prices and stock levels are not sent.",
   "Customer information, orders, payment information, and account or login data are never sent. Contact details, prices and stock levels are not sent either.",
   "AI suggestions can be wrong. Nothing changes until you review a suggestion and approve it.",
   "Approved changes are saved as drafts. Publishing stays a separate action.",
@@ -192,7 +196,7 @@ export async function loadAiConsentView(businessId: string, isOwner: boolean) {
   const readiness = await aiReadiness(businessId);
   const { status, consent, reason } = readiness;
   return {
-    provider: { name: AI_PROVIDER_NAME, available: status.available },
+    provider: { name: status.providerName ?? AI_PROVIDER_NAME, available: status.available },
     /** Kinds of request the platform can handle now. */
     tasks: status.tasks,
     /** Why this store cannot use AI, whatever the owner's consent: its plan or a suspension. */

@@ -4,6 +4,7 @@ import { AI_USAGE_ROW_LIMIT, APPROACHING_LIMIT_SHARE, getAiUsageOverview, isVali
 import { getAiRoutingOverview } from "@/lib/ai-providers/overview";
 import { usagePeriod } from "@/lib/ai-builder/usage";
 import AiProviderManager from "@/components/admin/AiProviderManager";
+import AiKeyManager from "@/components/admin/AiKeyManager";
 import {
   Card,
   EmptyNote,
@@ -68,6 +69,14 @@ export default async function AdminAiUsagePage({ searchParams }: { searchParams:
         <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${status.available ? "bg-emerald-600" : "bg-slate-400"}`} />
         {status.available ? "AI requests can be served on this platform." : "No AI requests can be served on this platform now: nothing is being sent to a provider. See why below."}
       </p>
+
+      <Card title="AI provider API keys">
+        <AiKeyManager
+          initial={routing.providers
+            .filter((provider) => provider.disclosed)
+            .map((provider) => ({ id: provider.id, displayName: provider.displayName, envName: provider.key.envName, source: provider.key.source, last4: provider.key.last4, updatedAt: provider.key.updatedAt }))}
+        />
+      </Card>
 
       <Card title="AI providers and routing">
         <AiProviderManager initial={routing} />

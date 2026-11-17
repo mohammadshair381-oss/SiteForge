@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { dbConnect } from "@/lib/db";
 import { PlatformSettings } from "@/models/PlatformSettings";
+import { loadAiCredentials } from "./credentials";
 import { aiProviders } from "./registry";
 
 /**
@@ -43,6 +44,8 @@ let cached: { settings: AiRoutingSettings; at: number } | null = null;
 
 /** Always asks the database. */
 export async function readAiRoutingState(): Promise<AiRoutingState> {
+  // Whoever reads the routing decides with it, so the stored API keys are current too.
+  await loadAiCredentials();
   try {
     await dbConnect();
     const doc = await PlatformSettings.findById("platform").select("aiRouting aiRoutingRevision").lean();
@@ -67,6 +70,7 @@ export async function readAiRoutingState(): Promise<AiRoutingState> {
 }
 
 export async function getAiRoutingSettings(): Promise<AiRoutingSettings> {
+  await loadAiCredentials();
   if (cached && Date.now() - cached.at < CACHE_MS) return cached.settings;
   return (await readAiRoutingState()).settings;
 }

@@ -1,12 +1,14 @@
 import { geminiExtraModels, geminiModel } from "@/lib/env";
 import { geminiGenerateJson } from "@/lib/ai-planning/gemini-http";
+import { aiProviderKey } from "./credentials";
 import { AiProviderError } from "./errors";
 import type { AiCapability, AiGeneration, AiModelInfo, AiProviderAdapter, AiProviderRequest } from "./types";
 
 /**
  * Google Gemini as one provider adapter. The request itself stays in the one Gemini
  * implementation, `lib/ai-planning/gemini-http.ts` (key in a header only, one timeout including
- * the body, fixed messages, scalar-only logs). The key is read here and goes nowhere else.
+ * the body, fixed messages, scalar-only logs). The key (the Super Admin's, else GEMINI_API_KEY) is
+ * read here and goes nowhere else.
  */
 const GENERATION: readonly AiCapability[] = ["text", "structured_json", "conversation", "system_instructions", "usage_metadata"];
 
@@ -27,7 +29,7 @@ function modelInfo(id: string): AiModelInfo {
 }
 
 async function call(request: AiProviderRequest, responseFormat: "text" | "json"): Promise<AiGeneration> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = aiProviderKey("gemini", "GEMINI_API_KEY");
   if (!apiKey) {
     throw new AiProviderError({
       status: 503,
@@ -60,9 +62,10 @@ async function call(request: AiProviderRequest, responseFormat: "text" | "json")
 export const geminiAdapter: AiProviderAdapter = {
   id: "gemini",
   displayName: "Google Gemini",
+  keyEnvName: "GEMINI_API_KEY",
   requiredConfig: ["AI_PROVIDER_ENABLED", "GEMINI_API_KEY"],
   optionalConfig: ["GEMINI_MODEL", "GEMINI_MODELS", "AI_PROVIDER_TIMEOUT_MS"],
-  isConfigured: () => Boolean(process.env.GEMINI_API_KEY) && geminiModel() !== null,
+  isConfigured: () => Boolean(aiProviderKey("gemini", "GEMINI_API_KEY")) && geminiModel() !== null,
   defaultModel: () => geminiModel(),
   models: () => {
     const main = geminiModel();

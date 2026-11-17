@@ -316,9 +316,11 @@ test("SEO and theme prompts use sanitized fields only (no prices, stock or SKUs)
 });
 
 test("the consent disclosure names page text (the data now sent)", () => {
-  assert.match(AI_CONSENT_DISCLOSURE[0], /titles and text of your website pages/);
-  assert.match(AI_CONSENT_DISCLOSURE[1], /description and section text of the page you ask about/);
-  assert.match(AI_CONSENT_DISCLOSURE[1], /saved contact details are removed/);
+  // Every provider that may receive store data is named first.
+  assert.match(AI_CONSENT_DISCLOSURE[0], /Google Gemini, Anthropic Claude or OpenAI/);
+  assert.match(AI_CONSENT_DISCLOSURE[1], /titles and text of your website pages/);
+  assert.match(AI_CONSENT_DISCLOSURE[2], /description and section text of the page you ask about/);
+  assert.match(AI_CONSENT_DISCLOSURE[2], /saved contact details are removed/);
 });
 
 test("saved contact details are removed from page prompts by value, ignoring case and spacing", () => {

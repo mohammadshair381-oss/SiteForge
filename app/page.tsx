@@ -238,7 +238,7 @@ export default async function HomePage() {
                 {!aiLive && <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-medium normal-case tracking-normal text-white/80">Rolling out soon</span>}
               </p>
               <h2 className="mt-4 text-3xl font-semibold tracking-tight sm:text-5xl">Describe what you want. Stay in charge of what changes.</h2>
-              <p className="mt-4 text-lg leading-8 text-white/70">Ask in your own words for a new page, a sharper homepage, better product text or a design suggestion. Powered by Google Gemini.</p>
+              <p className="mt-4 text-lg leading-8 text-white/70">Ask in your own words for a new page, a sharper homepage, better product text or a design suggestion. Powered by leading AI models.</p>
               <ul className="mt-8 space-y-3 text-sm text-white/80">
                 {[
                   "You see exactly what would change, before anything does.",

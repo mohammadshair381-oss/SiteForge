@@ -25,7 +25,7 @@ const parseRoute = (value: string): Route | null => {
 /**
  * Which AI provider and model handles what. Every save names a reason and the revision it was based on,
  * and the server checks the choices again (`assertAiRoutingValid`). What is on offer comes from the
- * server. Nothing here can turn AI on, supply a credential or list a provider without an adapter.
+ * server. Nothing here can turn AI on, supply a credential (keys: AiKeyManager) or list a provider without an adapter.
  */
 export default function AiProviderManager({ initial }: { initial: AiRoutingOverview }) {
   const router = useRouter();
@@ -178,7 +178,7 @@ export default function AiProviderManager({ initial }: { initial: AiRoutingOverv
 
       <section aria-labelledby="ai-providers-heading">
         <h3 id="ai-providers-heading" className={heading}>Providers</h3>
-        <p className={hint}>Only providers with an adapter in the code appear here. Credentials stay in the server environment and are never shown.</p>
+        <p className={hint}>Only providers with an adapter in the code appear here. To use only one, untick &quot;Allow this provider&quot; for the others and save. API keys are set in the card above and are never shown.</p>
         <ul className="mt-2 space-y-3">
           {overview.providers.map((provider) => (
             <li key={provider.id} className="rounded-xl border border-slate-200 p-3">

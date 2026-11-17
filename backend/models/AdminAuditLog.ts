@@ -27,6 +27,8 @@ export const ADMIN_AUDIT_ACTIONS = [
   "dispute.note",
   "business.plan_assign",
   "platform.settings",
+  /** An AI provider's API key set or removed: only the last four characters are recorded. */
+  "platform.ai_credentials",
 ] as const;
 export type AdminAuditAction = (typeof ADMIN_AUDIT_ACTIONS)[number];
 

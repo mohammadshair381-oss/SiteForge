@@ -2,6 +2,7 @@ import { HttpError } from "@/lib/api";
 import { isAiProviderEnabled } from "@/lib/env";
 import { parseProviderJson, type GeminiUsage } from "@/lib/ai-planning/gemini-http";
 import { executeAiTask } from "@/lib/ai-providers/execute";
+import { loadAiCredentials } from "@/lib/ai-providers/credentials";
 import { configuredAiProviders } from "@/lib/ai-providers/registry";
 import { resolveAiRoutes } from "@/lib/ai-providers/routing";
 import { getAiRoutingSettings, type AiRouteTask } from "@/lib/ai-providers/settings";
@@ -25,9 +26,10 @@ export interface AiBuilderStatus {
 }
 
 /**
- * The server environment alone: what can be decided without reading anything. Whether a request can
- * actually run also depends on the saved routing, so anything shown to a person uses
- * `aiPlatformStatus`, or `aiReadiness` (./consent.ts) when it concerns one store.
+ * The server environment and the API keys loaded so far (`loadAiCredentials` first, for keys set in
+ * the Super Admin panel). Whether a request can actually run also depends on the saved routing, so
+ * anything shown to a person uses `aiPlatformStatus`, or `aiReadiness` (./consent.ts) when it
+ * concerns one store.
  */
 export function aiBuilderStatus(): AiBuilderStatus {
   const enabled = isAiProviderEnabled();
@@ -36,10 +38,11 @@ export function aiBuilderStatus(): AiBuilderStatus {
 }
 
 /** Fixed message when AI is off (checked before any rate limit, quota or data access). */
-export function assertAiAvailable(): void {
+export async function assertAiAvailable(): Promise<void> {
   if (!isAiProviderEnabled()) {
     throw new HttpError(503, "AI suggestions are turned off on this platform. You can still make every change yourself.", "provider_not_configured");
   }
+  await loadAiCredentials();
   if (configuredAiProviders().length === 0) throw new HttpError(503, "AI suggestions are not configured on this platform.", "provider_not_configured");
 }
 
@@ -62,16 +65,20 @@ const REQUEST_NEEDS = ["structured_json", "system_instructions"] as const;
 export interface AiPlatformStatus extends AiBuilderStatus {
   /** Each kind of request has a provider and model that can handle it. */
   tasks: Record<AiTask, boolean>;
+  /** The provider most requests go to now, for owners ("Written by ..."); null when none can. */
+  providerName: string | null;
 }
 
 /** Whether the platform can serve AI right now: the environment, the saved routing and what each model can do. */
 export async function aiPlatformStatus(): Promise<AiPlatformStatus> {
+  await loadAiCredentials();
   const status = aiBuilderStatus();
   const settings = status.available ? await getAiRoutingSettings() : null;
   const tasks = Object.fromEntries(
     (Object.keys(AI_TASK_ROUTES) as AiTask[]).map((task) => [task, settings ? resolveAiRoutes(AI_TASK_ROUTES[task], REQUEST_NEEDS, settings).length > 0 : false]),
   ) as Record<AiTask, boolean>;
-  return { ...status, available: Object.values(tasks).some(Boolean), tasks };
+  const providerName = settings ? (resolveAiRoutes(AI_TASK_ROUTES.website, REQUEST_NEEDS, settings)[0] ?? resolveAiRoutes(AI_TASK_ROUTES.storefront, REQUEST_NEEDS, settings)[0])?.adapter.displayName ?? null : null;
+  return { ...status, available: Object.values(tasks).some(Boolean), tasks, providerName };
 }
 
 /** Refuses a request no provider can handle, before any rate limit or store data is touched. Never says why: that is the platform's business. */
@@ -92,7 +99,7 @@ export async function generateStructured(
   task: AiTask,
   request: { system: string; prompt: string; maxOutputTokens: number; subject?: string; advice?: string },
 ): Promise<{ value: unknown; usage: GeminiUsage; model: string; providerId: string; fallbacks: number }> {
-  assertAiAvailable();
+  await assertAiAvailable();
   const result = await executeAiTask({
     task: AI_TASK_ROUTES[task],
     operation: "structured",

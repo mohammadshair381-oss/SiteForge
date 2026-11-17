@@ -69,6 +69,11 @@ export interface AiProviderAdapter {
   /** Lowercase letters, digits and dashes; also part of usage records. */
   id: string;
   displayName: string;
+  /**
+   * The server environment variable holding its API key. A key set in the Super Admin panel
+   * (./credentials.ts) is used instead when there is one.
+   */
+  keyEnvName: string;
   /** Names of the server environment variables it needs, never their values. */
   requiredConfig: readonly string[];
   optionalConfig: readonly string[];

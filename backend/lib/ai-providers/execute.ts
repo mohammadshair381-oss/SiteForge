@@ -1,6 +1,7 @@
 import { aiProviderTimeoutMs } from "@/lib/env";
 import { assertProviderPayloadSafe } from "@/lib/ai-builder/sanitize";
 import { AiProviderError, canFallBack, retriesSameRoute } from "./errors";
+import { loadAiCredentials } from "./credentials";
 import { resolveAiRoutes } from "./routing";
 import { getAiRoutingSettings, type AiRouteTask, type AiRoutingSettings } from "./settings";
 import type { AiCapability, AiGeneration, AiMessage } from "./types";
@@ -46,6 +47,8 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 export async function executeAiTask(request: AiTaskRequest): Promise<AiExecution> {
   assertProviderPayloadSafe(request.system ?? "", request.prompt, ...(request.history ?? []).map((message) => message.text));
 
+  // Adapters read their keys synchronously: load the stored ones first (also when routing is given).
+  await loadAiCredentials();
   const settings = request.routing ?? (await getAiRoutingSettings());
   const needs: AiCapability[] = [OPERATION_NEEDS[request.operation], ...(request.system ? (["system_instructions"] as const) : [])];
   const routes = resolveAiRoutes(request.task, needs, settings);

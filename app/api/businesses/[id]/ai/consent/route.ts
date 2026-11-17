@@ -34,7 +34,7 @@ export async function GET(_request: Request, context: RouteContext) {
     const { status } = readiness;
     return ok(
       {
-        provider: { name: AI_PROVIDER_NAME, model: status.available ? defaultAiModel() : null, ...status },
+        provider: { ...status, name: status.providerName ?? AI_PROVIDER_NAME, model: status.available ? defaultAiModel() : null },
         disclosure: { version: AI_CONSENT_VERSION, points: AI_CONSENT_DISCLOSURE, changes: AI_CONSENT_CHANGES },
         availability: { ready: readiness.ready, reason: readiness.reason, message: readiness.message },
         consent: readiness.consent,

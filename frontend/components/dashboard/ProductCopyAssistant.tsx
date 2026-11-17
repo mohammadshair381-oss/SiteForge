@@ -156,7 +156,7 @@ export default function ProductCopyAssistant({
               Discard
             </Button>
           </div>
-          <p className="mt-3 text-xs text-slate-500">Written by Google Gemini from this product&apos;s details. Using it fills the form; nothing is saved until you select Save.</p>
+          <p className="mt-3 text-xs text-slate-500">Written by AI from this product&apos;s details. Using it fills the form; nothing is saved until you select Save.</p>
         </div>
       )}
     </div>
