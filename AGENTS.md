@@ -253,6 +253,12 @@ never change with the platform. Use `frontend/components/ui/*`, `confirmDialog` 
   Per-customer coupon limits also match the phone, and the address if the coupon says so, as
   keyed hashes bound to that coupon (`couponIdentityKeys`); never store these values plainly.
   The new models have `autoIndex` off (indexes are an approved operation).
+- Starter samples (owner decision 2026-11-17, `backend/lib/sample-products.ts`): the quick start
+  (`addSamples: true`) and `POST products/samples` add a few products from the theme preview
+  catalogue (`sampleCatalogFor`, by business type, none for service types) as DRAFTS marked
+  `Product.sample`, within the plan limit, with stock 0 and no description, sale price or rating.
+  A sample can never be made active as it is: changing its name, price or photo clears the mark
+  (server-only). Its bundled photo is never stored as `imageUrl`. Removing samples archives them.
 - Pricing: `priceOrder` (`backend/lib/checkout-pricing.ts`) is the only order calculation,
   used by the cart preview and checkout, so a shopper is charged what they saw.
   Refunds go through `backend/lib/payments/order-refunds.ts`: an amount is held on the order

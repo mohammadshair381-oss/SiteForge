@@ -6,6 +6,7 @@ import Link from "next/link";
 import { formatPrice } from "@/lib/format";
 import { availabilityOf } from "@/lib/inventory-rules";
 import ProductThumb from "./ProductThumb";
+import { sampleImage } from "@/lib/theme-preview-samples";
 import MediaPicker from "./MediaPicker";
 import ProductCopyAssistant from "./ProductCopyAssistant";
 import ManagementPageHeader from "./ManagementPageHeader";
@@ -39,6 +40,8 @@ interface Product {
   seoTitle?: string;
   seoDescription?: string;
   imageAlt?: string;
+  /** A starter sample's bundled photo; empty for the owner's own products. */
+  sample?: string;
 }
 
 const quietDangerClass =
@@ -155,6 +158,32 @@ export default function ProductsManager({
   const [archived, setArchived] = useState<Product[] | null>(null);
 
   const atLimit = products.length >= entitlements.productLimit;
+  const samples = products.filter((product) => product.sample);
+  const [samplesBusy, setSamplesBusy] = useState(false);
+
+  /** Adds this store's starter samples, or archives the ones still unchanged. */
+  async function changeSamples(action: "add" | "remove") {
+    if (action === "remove" && !(await confirmDialog({ title: "Remove the sample products?", message: "Samples you have not changed yet are archived. Products you made your own stay.", confirmLabel: "Remove samples" }))) return;
+    setSamplesBusy(true);
+    try {
+      const res = await fetch(`/api/businesses/${businessId}/products/samples`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(apiErrorFrom(data, "That did not work. Try again.").message);
+      if (action === "remove") {
+        setProducts((current) => current.filter((product) => !product.sample));
+        success("Samples removed", "Only your own products are left.");
+      } else {
+        const list = await fetch(`/api/businesses/${businessId}/products`, { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+        if (list?.products) setProducts(list.products as Product[]);
+        success(data?.added ? "Samples added" : "No samples added", data?.added ? "Open each one and put in your own name, price and photo." : "There are no samples for this kind of business, or your plan has no room for more products.");
+      }
+      router.refresh();
+    } catch (err) {
+      error("Samples", err instanceof Error ? err.message : "That did not work. Try again.");
+    } finally {
+      setSamplesBusy(false);
+    }
+  }
 
   const nameId = `${formId}-name`;
   const priceId = `${formId}-price`;
@@ -547,7 +576,7 @@ export default function ProductsManager({
             title={`You have used all ${entitlements.productLimit} products on the ${entitlements.planName} plan.`}
             action={compareOption}
           >
-            Everything you have added stays on your store. To add more, archive a product you no longer sell or move to a
+            Everything you have added stays on your store. To add more, {samples.length > 0 ? "make a sample product your own or remove the samples, " : ""}archive a product you no longer sell or move to a
             plan with more room.{canViewBilling ? "" : " The business owner manages the plan."}
           </Notice>
         )}
@@ -713,14 +742,29 @@ export default function ProductsManager({
         </div>
       </Card>
 
+      {samples.length > 0 && (
+        <Notice
+          tone="info"
+          title={`${samples.length} sample product${samples.length === 1 ? "" : "s"} to get you started`}
+          action={<Button variant="secondary" disabled={samplesBusy} onClick={() => void changeSamples("remove")}>{samplesBusy ? "Removing…" : "Remove samples"}</Button>}
+        >
+          Shoppers never see samples. Press <strong>Make it yours</strong> on one, change its name, price or photo to your own, then set it to Active to sell it.
+        </Notice>
+      )}
+
       {products.length === 0 ? (
         <EmptyState
           icon={<Icon name="products" size={20} />}
           title="No products yet"
           action={
-            <Button onClick={openAddForm} disabled={atLimit || !entitlements.active}>
-              Add your first product
-            </Button>
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button onClick={openAddForm} disabled={atLimit || !entitlements.active}>
+                Add your first product
+              </Button>
+              <Button variant="secondary" onClick={() => void changeSamples("add")} disabled={samplesBusy || atLimit || !entitlements.active}>
+                {samplesBusy ? "Adding…" : "Start with sample products"}
+              </Button>
+            </div>
           }
         >
           Products are what shoppers browse and buy on your store. Add one with a name, a price and a photo, and you can
@@ -773,8 +817,8 @@ export default function ProductsManager({
                   className={inputClass}
                 >
                   <option value="all">All statuses</option>
-                  <option value="active">Active</option>
-                  <option value="draft">Draft</option>
+                  <option value="active">Active (on sale)</option>
+                  <option value="draft">Draft (hidden from shoppers)</option>
                 </select>
               </Field>
             </div>
@@ -810,8 +854,8 @@ export default function ProductsManager({
                     <li key={product._id}>
                       <div className={`${rowGridClass} px-4 py-4 transition-colors hover:bg-slate-50 sm:px-6`}>
                         <ProductThumb
-                          key={product.imageUrl || "no-image"}
-                          imageUrl={product.imageUrl}
+                          key={product.imageUrl || product.sample || "no-image"}
+                          imageUrl={product.imageUrl || (product.sample ? sampleImage(product.sample) : "")}
                           name={product.name}
                           sizeClassName="h-14 w-14"
                         />
@@ -833,16 +877,17 @@ export default function ProductsManager({
                             <StockPill stock={product.stock ?? 0} threshold={product.lowStockThreshold} />
                           </div>
                           <div aria-label={`Status: ${product.status}`} role="group">
-                            <Pill tone={product.status === "active" ? "success" : "neutral"} className="capitalize">
-                              {product.status}
+                            <Pill tone={product.status === "active" ? "success" : "neutral"}>
+                              {product.status === "active" ? "On sale" : product.status === "draft" ? "Hidden" : product.status}
                             </Pill>
+                            {product.sample && <Pill tone="warning" className="ml-1.5">Sample</Pill>}
                           </div>
                         </div>
                         <div className="col-span-2 flex flex-wrap items-center gap-2 xl:col-span-1 xl:justify-end">
                           {!isEditing && (
                             <>
                               <Button variant="secondary" onClick={() => startEdit(product)} disabled={busyId === product._id}>
-                                Edit
+                                {product.sample ? "Make it yours" : "Edit"}
                               </Button>
                               <Link href={`/dashboard/businesses/${businessId}/products/${product._id}/variants`} className={buttonClass({ variant: "ghost" })}>
                                 {product.variantCount ? `Variants (${product.variantCount})` : "Options"}
@@ -876,8 +921,13 @@ export default function ProductsManager({
                           className="border-t border-slate-200 bg-slate-50 p-4 sm:p-6"
                         >
                           <h3 className="mb-4 text-base font-semibold text-slate-900">
-                            Edit product
+                            {product.sample ? "Make this sample yours" : "Edit product"}
                           </h3>
+                          {product.sample && (
+                            <Notice tone="info" className="mb-4">
+                              This is a sample, and shoppers never see it. Put in your own name, price and photo (at least one of them), then choose Active to sell it.
+                            </Notice>
+                          )}
 
                           <FormSection level="h4" title="Basics" hint="Active products are visible on your published store. Drafts stay hidden.">
                             <div className="sm:col-span-2">
@@ -912,8 +962,8 @@ export default function ProductsManager({
                                 disabled={saving}
                                 className={inputClass}
                               >
-                                <option value="active">Active</option>
-                                <option value="draft">Draft</option>
+                                <option value="active">Active (on sale)</option>
+                                <option value="draft">Draft (hidden from shoppers)</option>
                               </select>
                             </Field>
                             <div className="sm:col-span-2">
@@ -1066,7 +1116,7 @@ export default function ProductsManager({
                               )}
                             </div>
                             <div className="sm:col-span-2">
-                              <Field label="Main image alt text" hint="Describes the photo for people using screen readers." error={editFields.imageAlt}>
+                              <Field label="Describe the photo (optional)" hint="Describes the photo for people using screen readers." error={editFields.imageAlt}>
                                 <input id={`${editBase}-alt`} value={editImageAlt} maxLength={160} onChange={(e) => setEditImageAlt(e.target.value)} disabled={saving} className={inputClass} />
                               </Field>
                             </div>
@@ -1086,14 +1136,14 @@ export default function ProductsManager({
                             </div>
                           </FormSection>
 
-                          <FormSection level="h4" title="Search engines" hint="Left empty, these come from the product name and description.">
+                          <FormSection level="h4" title="How it shows on Google" hint="Left empty, these come from the product name and description.">
                             <div className="sm:col-span-2">
-                              <Field label="Search title" hint={`${editSeoTitle.length}/160 characters`} error={editFields.seoTitle}>
+                              <Field label="Title on Google (optional)" hint={`${editSeoTitle.length}/160 characters`} error={editFields.seoTitle}>
                                 <input id={`${editBase}-seo-title`} value={editSeoTitle} maxLength={160} onChange={(e) => setEditSeoTitle(e.target.value)} disabled={saving} className={inputClass} />
                               </Field>
                             </div>
                             <div className="sm:col-span-2">
-                              <Field label="Search description" hint={`${editSeoDescription.length}/320 characters`} error={editFields.seoDescription}>
+                              <Field label="Description on Google (optional)" hint={`${editSeoDescription.length}/320 characters`} error={editFields.seoDescription}>
                                 <textarea id={`${editBase}-seo-description`} rows={2} value={editSeoDescription} maxLength={320} onChange={(e) => setEditSeoDescription(e.target.value)} disabled={saving} className={inputClass} />
                               </Field>
                             </div>

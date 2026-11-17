@@ -5,6 +5,8 @@ import { dbConnect } from "@/lib/db";
 import { requireUser, getMembershipsForUser } from "@/lib/auth/guards";
 import { getThemeMeta } from "@/lib/themes";
 import { Category } from "@/models/Category";
+import { Plan } from "@/models/Plan";
+import { planThemes } from "@/lib/theme-tiers";
 import { BUSINESS_CATEGORIES, type ThemeId } from "@/lib/constants";
 import CreateBusinessForm from "@/components/dashboard/CreateBusinessForm";
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
@@ -42,6 +44,9 @@ export default async function DashboardPage() {
   }));
 
   const rootDomain = storeLinkRoot((await headers()).get("host"));
+  // The themes a new store may start with: the free plan's, the same rule POST /api/businesses applies.
+  const startingPlan = await Plan.findOne({ key: "free", active: true }).select("key price features").lean();
+  const startingThemes = planThemes(startingPlan);
 
   const businesses = memberships
     .map((membership) => {
@@ -73,7 +78,7 @@ export default async function DashboardPage() {
           <h1 className="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">Welcome, {user.name.split(" ")[0]}</h1>
           <p className="mt-1.5 text-slate-600">{businesses.length === 0 ? "Let's get your first store started." : "Choose a business to keep working on it."}</p>
         </div>
-        <CreateBusinessForm categories={categories} rootDomain={rootDomain} />
+        <CreateBusinessForm categories={categories} rootDomain={rootDomain} themes={startingThemes} />
       </div>
 
       {businesses.length === 0 ? (

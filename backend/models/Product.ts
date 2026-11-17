@@ -63,6 +63,13 @@ export interface ProductDoc {
   ratingAverage?: number | null;
   ratingCount?: number;
   status: ProductStatus;
+  /**
+   * A starter sample (lib/sample-products.ts): the name of its bundled photo in
+   * public/samples. Empty for the owner's own products. A sample stays a draft:
+   * it cannot be made active until the owner changes its name, price or photo,
+   * which clears this. Server-written only.
+   */
+  sample?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -111,6 +118,8 @@ const productSchema = new Schema<ProductDoc>(
     ratingAverage: { type: Number, default: null, min: 1, max: 5 },
     ratingCount: { type: Number, default: 0, min: 0 },
     status: { type: String, enum: PRODUCT_STATUSES, default: "draft", index: true },
+    // No index: only ever read together with `business`.
+    sample: { type: String, default: "", trim: true, maxlength: 60 },
   },
   { timestamps: true, versionKey: false },
 );

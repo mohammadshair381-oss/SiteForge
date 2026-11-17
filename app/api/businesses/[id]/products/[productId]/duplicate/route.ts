@@ -59,6 +59,8 @@ export async function POST(_request: Request, context: RouteContext) {
               lowStockThreshold: source.lowStockThreshold ?? null,
               stock: 0,
               status: "draft",
+              // A copy of a sample is still a sample (lib/sample-products.ts).
+              sample: source.sample ?? "",
             },
           ],
           { session },

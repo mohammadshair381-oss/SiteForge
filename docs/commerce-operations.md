@@ -23,6 +23,21 @@ guarantees each one gives, and the database operations they need.
 - Shoppers choose options on the product page (`VariantPicker`); product
   cards link to it ("Choose options") and show the price range.
 
+## Starter sample products
+
+A new store created with the quick start (or an owner pressing "Start with sample products") gets up to
+three products from the theme preview catalogue, chosen by business type (`sampleCatalogFor`; none for
+services, real estate and education), within the plan's product limit (`backend/lib/sample-products.ts`).
+
+- Each is a **draft** marked `sample` (the name of its bundled photo in `public/samples`), with stock 0,
+  no description, no sale price and no rating. Drafts never reach a shopper.
+- The product route refuses to make a sample active (`422 sample_product`). Changing its name, price or
+  photo makes it the owner's own and clears the mark. Clients cannot set or clear it.
+- The bundled photo is shown only in the dashboard and is never stored as `imageUrl`, which must be this
+  store's own media. A copy of a sample is still a sample.
+- "Remove samples" archives the samples still unchanged (soft, like every product delete). The setup
+  checklist lists "Replace the sample products" while any remain. `sample` has no index.
+
 ## Inventory
 
 All stock changes go through `backend/lib/inventory.ts` and record an

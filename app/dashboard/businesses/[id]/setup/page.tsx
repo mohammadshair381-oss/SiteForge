@@ -121,6 +121,7 @@ export default async function StoreSetup({
             status: product.status,
             stock: product.stock ?? 0,
             variantCount: (product.options ?? []).length > 0 ? (product.variants ?? []).filter((v) => !v.archived).length : 0,
+            sample: product.sample ?? "",
           }))}
           currency={business.currency ?? "USD"}
           canArchive

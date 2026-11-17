@@ -2,10 +2,11 @@ import type { ThemeId } from "./constants";
 import type { StorefrontProduct } from "./storefront";
 
 /**
- * Sample products for THEME PREVIEWS ONLY (marketing pages, theme marketplace),
- * so a theme can be judged with real-looking content. They exist only in the
- * browser preview: never saved, never sent to the server, never shown on a
- * public store, and every preview says they are samples. Photos live in
+ * Sample products for THEME PREVIEWS (marketing pages, theme marketplace), so a
+ * theme can be judged with real-looking content, and for the hidden starter
+ * drafts a new store may get (lib/sample-products.ts). In previews they exist
+ * only in the browser; as starter drafts they are marked `sample`, can never be
+ * made active as they are, and are never shown on a public store. Photos live in
  * public/samples (docs/sample-media-credits.md). No ratings, no discounts.
  */
 const SAMPLES: Record<string, Array<[name: string, category: string, price: number, image: string]>> = {
@@ -31,6 +32,52 @@ const FAMILY: Record<ThemeId, keyof typeof SAMPLES> = {
   harvest: "grocery",
   forma: "home",
 };
+
+/** Which sample set suits a business type; null for businesses that do not usually sell products. */
+const FAMILY_BY_TYPE: Record<string, keyof typeof SAMPLES | null> = {
+  clothing: "fashion",
+  shoes: "fashion",
+  electronics: "tech",
+  technology: "tech",
+  grocery: "grocery",
+  furniture: "home",
+  food: "food",
+  cosmetics: "lifestyle",
+  beauty: "lifestyle",
+  hardware: "general",
+  fitness: "street",
+  services: null,
+  realestate: null,
+  education: null,
+};
+
+/** How many starter samples a new store may get (lib/sample-products.ts). */
+export const SAMPLE_PRODUCT_COUNT = 3;
+
+export interface SampleCatalogItem {
+  name: string;
+  category: string;
+  /** A suggestion only: the owner sets the real price. */
+  price: number;
+  /** File name in public/samples, without the extension. */
+  image: string;
+}
+
+/**
+ * The sample products for a store: by its business type, or else by its theme. Empty for
+ * business types that do not usually sell products (services, real estate, education).
+ */
+export function sampleCatalogFor(themeId: ThemeId, businessType: string | null | undefined): SampleCatalogItem[] {
+  const byType = businessType ? FAMILY_BY_TYPE[businessType] : undefined;
+  if (byType === null) return [];
+  const family = byType ?? FAMILY[themeId] ?? "general";
+  return SAMPLES[family].map(([name, category, price, image]) => ({ name, category, price, image }));
+}
+
+/** Whether a value names one of the bundled sample photos. */
+export function isSampleImageKey(value: unknown): value is string {
+  return typeof value === "string" && Object.values(SAMPLES).some((items) => items.some((item) => item[3] === value));
+}
 
 /** A sample photo. These load on the platform host only, where previews run. */
 export function sampleImage(name: string): string {

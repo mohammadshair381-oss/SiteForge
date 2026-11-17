@@ -15,11 +15,11 @@ export type SetupStep = (typeof SETUP_STEPS)[number];
 
 export const SETUP_STEP_INFO: Record<SetupStep, { title: string; description: string; skippable: boolean }> = {
   business: { title: "Business details", description: "Your name, type of business, description and how customers reach you.", skippable: false },
-  brand: { title: "Brand", description: "Theme, colours, font and logo.", skippable: false },
+  brand: { title: "Look and logo", description: "How your store looks: its design, colours, lettering and your logo.", skippable: false },
   structure: { title: "Homepage and pages", description: "A starting homepage layout for your type of business, and pages such as About and Contact.", skippable: false },
   products: { title: "Products", description: "Add what you sell. You can also do this later.", skippable: true },
-  settings: { title: "Store settings", description: "Delivery, payments and store policies.", skippable: true },
-  launch: { title: "Preview and publish", description: "Check your store on every screen size, then publish it.", skippable: false },
+  settings: { title: "Delivery and payments", description: "How you deliver, how customers pay, and your shop rules (returns and so on).", skippable: true },
+  launch: { title: "Check and go live", description: "See your store on a phone, a tablet and a computer, then put it online.", skippable: false },
 };
 
 export interface SetupProgress {
@@ -57,6 +57,8 @@ export interface SetupFacts {
   logoUrl: string;
   activeProducts: number;
   activeProductsWithoutImage: number;
+  /** Starter samples still to replace (lib/sample-products.ts). Optional: unset counts as none. */
+  sampleProducts?: number;
   shippingConfigured: boolean;
   policies: { shipping: boolean; returns: boolean };
   codEnabled: boolean;
@@ -97,6 +99,9 @@ export function storeReadiness(f: SetupFacts): Readiness {
     { key: "location", label: "Say where you are or who you serve", detail: "A shop address or a service area, shown in your store footer.", done: Boolean(f.address?.trim() || f.serviceArea?.trim()), required: false, step: "business" },
     { key: "logo", label: "Upload a logo", detail: "Shown in your store header. Your store name is shown until you add one.", done: Boolean(f.logoUrl), required: false, step: "brand" },
     { key: "pages", label: "Prepare your other pages", detail: "About, Contact and policy pages help customers trust your store. They stay drafts until you publish them.", done: (f.otherPages ?? 0) > 0, required: false, step: "structure" },
+    ...((f.sampleProducts ?? 0) > 0
+      ? [{ key: "samples", label: "Replace the sample products", detail: `${f.sampleProducts} sample product${f.sampleProducts === 1 ? " is" : "s are"} waiting. Shoppers never see them: open each one and put in your own name, price and photo, or remove them.`, done: false, required: false, step: "products" as const }]
+      : []),
     { key: "products", label: "Add your first product", detail: "Customers need something to buy. Sections without products stay hidden.", done: f.activeProducts > 0, required: false, step: "products" },
     {
       key: "images",

@@ -44,6 +44,7 @@ export default async function BusinessProducts({
     stock: product.stock ?? 0,
     variantCount: (product.options ?? []).length > 0 ? (product.variants ?? []).filter((v) => !v.archived).length : 0,
     lowStockThreshold: typeof product.lowStockThreshold === "number" ? product.lowStockThreshold : null,
+    sample: product.sample ?? "",
   }));
 
   return (

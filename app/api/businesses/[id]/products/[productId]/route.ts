@@ -85,10 +85,28 @@ export async function PATCH(request: Request, context: RouteContext) {
       throw new HttpError(422, "The original price must be higher than the price", "invalid_compare_at_price");
     }
 
+    // A starter sample becomes the owner's own product once they change its name, price or
+    // photo (lib/sample-products.ts). Until then it can never be shown to shoppers.
+    const wasSample = Boolean(product.sample);
+    const madeOwn =
+      wasSample &&
+      ((fields.name !== undefined && fields.name !== product.name) ||
+        (fields.price !== undefined && fields.price !== product.price) ||
+        (typeof fields.imageUrl === "string" && fields.imageUrl !== "" && fields.imageUrl !== product.imageUrl));
+
     for (const [key, value] of Object.entries(fields)) {
       if (value !== undefined) {
         (product as unknown as Record<string, unknown>)[key] = value;
       }
+    }
+    if (madeOwn) product.sample = "";
+    if (product.sample && product.status === "active") {
+      // 422, not 409: the product form reads 409 as "stock changed while editing".
+      throw new HttpError(
+        422,
+        "This is a sample product. Change its name, price or photo to your own before showing it in your store.",
+        "sample_product",
+      );
     }
     // Validate the other changes before committing stock, so a rejected edit
     // never leaves a half-applied stock change behind.

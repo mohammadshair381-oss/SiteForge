@@ -18,7 +18,7 @@ export async function loadSetupFacts(
   user: { emailVerifiedAt?: Date | null },
 ): Promise<{ business: BusinessDoc; facts: SetupFacts; progress: SetupProgress; settings: Awaited<ReturnType<typeof getStorefrontSettings>>; entitlements: Awaited<ReturnType<typeof getEntitlements>> } | null> {
   await dbConnect();
-  const [business, entitlements, settings, activeProducts, withoutImage, onlinePayments, otherPages] = await Promise.all([
+  const [business, entitlements, settings, activeProducts, withoutImage, onlinePayments, otherPages, sampleProducts] = await Promise.all([
     Business.findById(businessId).lean<BusinessDoc>(),
     getEntitlements(businessId),
     getStorefrontSettings(businessId),
@@ -26,6 +26,7 @@ export async function loadSetupFacts(
     Product.countDocuments({ business: businessId, status: "active", $or: [{ imageUrl: "" }, { imageUrl: null }, { imageUrl: { $exists: false } }] }),
     isOnlinePaymentAvailable(businessId),
     Page.countDocuments({ business: businessId, isHome: { $ne: true } }),
+    Product.countDocuments({ business: businessId, sample: { $nin: ["", null] }, status: { $ne: "archived" } }),
   ]);
   if (!business) return null;
   const facts: SetupFacts = {
@@ -39,6 +40,7 @@ export async function loadSetupFacts(
     logoUrl: business.logoUrl ?? "",
     activeProducts,
     activeProductsWithoutImage: withoutImage,
+    sampleProducts,
     shippingConfigured: business.shippingSettings !== undefined && business.shippingSettings !== null,
     policies: { shipping: Boolean(settings.draft.policies.shipping.trim()), returns: Boolean(settings.draft.policies.returns.trim()) },
     codEnabled: business.codEnabled === true,

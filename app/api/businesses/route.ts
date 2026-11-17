@@ -10,6 +10,7 @@ import { getEntitlements } from "@/lib/billing";
 import { FREE_THEMES, defaultThemeFor, planThemes } from "@/lib/theme-tiers";
 import { getThemeMeta } from "@/lib/themes";
 import { generateDefaultPages } from "@/lib/page-generation";
+import { addSampleProducts } from "@/lib/sample-products";
 import { assertNotInMaintenance } from "@/lib/platform-settings";
 import { Business, Membership, Subscription, Plan, Category } from "@/models";
 
@@ -141,8 +142,18 @@ export async function POST(request: Request) {
         console.error("[pages] default pages not prepared at business creation");
       }
 
+      // Quick start: a few starter samples, as hidden drafts (best effort, like the pages).
+      let samplesAdded = 0;
+      if (body.addSamples === true) {
+        try {
+          samplesAdded = await addSampleProducts(business._id.toString());
+        } catch {
+          console.error("[products] sample products not prepared at business creation");
+        }
+      }
+
       const entitlements = await getEntitlements(business._id.toString());
-      return created({ business: business.toJSON(), entitlements });
+      return created({ business: business.toJSON(), entitlements, samplesAdded });
     } finally {
       await session.endSession();
     }

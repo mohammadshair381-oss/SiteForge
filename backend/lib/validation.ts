@@ -244,6 +244,8 @@ export const businessCreateSchema = z.object({
   subdomain: subdomainSchema.optional(),
   description: z.string().trim().max(2000).optional(),
   themeId: z.enum(THEME_IDS).optional(),
+  /** Quick start: add a few hidden starter sample products (lib/sample-products.ts). */
+  addSamples: z.boolean().optional(),
 });
 
 /**
